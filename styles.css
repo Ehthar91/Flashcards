@@ -703,3 +703,171 @@ body.dark .deck-status-badge.hidden {
   font-size: .72rem;
   font-weight: 800;
 }
+
+
+/* =========================================================
+   FULL-SCREEN STUDY LAYOUT
+   Uses nearly all space to the right of the class sidebar.
+   ========================================================= */
+
+#studyView {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.study-shell {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px 24px 22px;
+}
+
+.study-top {
+  min-height: 58px;
+  grid-template-columns: 130px minmax(0, 1fr) 130px;
+  padding: 0 4px;
+}
+
+.study-top h2 {
+  margin: 2px 0 0;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.study-counter {
+  font-size: .86rem;
+}
+
+.study-progress {
+  width: 100%;
+  margin: 6px 0 12px;
+}
+
+.study-card {
+  width: 100%;
+  min-height: calc(100vh - 110px);
+  padding: 24px 34px 20px;
+  border-radius: 8px;
+  box-shadow: none;
+  justify-content: center;
+}
+
+.study-card > .side-label:first-child {
+  margin-top: 2px;
+}
+
+.study-card-text {
+  width: 100%;
+  max-width: none;
+  margin: 12px 0 18px;
+  font-size: clamp(2.25rem, 4.6vw, 5.25rem);
+  line-height: 1.1;
+}
+
+#questionText {
+  min-height: 31vh;
+  display: grid;
+  place-items: center;
+  padding: 12px 5%;
+}
+
+.answer-area {
+  width: 100%;
+}
+
+.answer-area:not(.hidden) {
+  display: block;
+}
+
+.study-divider {
+  width: 100%;
+  margin: 5px 0 12px;
+}
+
+#answerText {
+  min-height: 29vh;
+  display: grid;
+  place-items: center;
+  padding: 12px 5%;
+  margin-bottom: 8px;
+}
+
+.study-reveal-btn {
+  min-width: 230px;
+  padding: 13px 34px;
+  margin-top: 2px;
+}
+
+.confidence-area {
+  width: min(560px, 100%);
+  margin: 2px auto 0;
+}
+
+.confidence-area p {
+  margin: 4px 0 9px;
+}
+
+.confidence-buttons {
+  gap: 12px;
+}
+
+.confidence-buttons button {
+  width: 54px;
+  height: 54px;
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.confidence-labels {
+  max-width: 330px;
+  margin-top: 6px;
+}
+
+.typing-area {
+  width: min(720px, 90%);
+}
+
+@media (min-width: 1280px) {
+  .study-shell {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .study-card {
+    min-height: calc(100vh - 104px);
+    padding-left: 42px;
+    padding-right: 42px;
+  }
+
+  #questionText,
+  #answerText {
+    padding-left: 8%;
+    padding-right: 8%;
+  }
+}
+
+@media (max-width: 760px) {
+  .study-shell {
+    padding: 12px 10px 20px;
+  }
+
+  .study-top {
+    grid-template-columns: 72px minmax(0, 1fr) 72px;
+  }
+
+  .study-card {
+    min-height: calc(100vh - 138px);
+    padding: 20px 14px;
+  }
+
+  #questionText,
+  #answerText {
+    min-height: 24vh;
+    padding-left: 2%;
+    padding-right: 2%;
+  }
+
+  .study-card-text {
+    font-size: clamp(1.8rem, 9vw, 3.2rem);
+  }
+}
