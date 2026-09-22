@@ -7,56 +7,68 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-
     function ownsDeck(deckId) {
-      return isAdmin() &&
-        get(/databases/$(database)/documents/decks/$(deckId)).data.createdBy == request.auth.uid;
+      return signedIn()
+        && exists(/databases/$(database)/documents/decks/$(deckId))
+        && get(/databases/$(database)/documents/decks/$(deckId)).data.ownerId == request.auth.uid;
     }
 
-    match /admins/{uid} {
-      allow get: if signedIn() && request.auth.uid == uid;
-      allow list: if isAdmin();
-      allow write: if false;
+    function publishedDeck(deckId) {
+      return exists(/databases/$(database)/documents/decks/$(deckId))
+        && get(/databases/$(database)/documents/decks/$(deckId)).data.published == true;
     }
 
     match /users/{uid} {
       allow read, create, update: if signedIn() && request.auth.uid == uid;
       allow delete: if false;
+
+      match /library/{deckId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.deckId == deckId
+          && request.resource.data.access == "study"
+          && publishedDeck(deckId);
+
+        allow update: if signedIn()
+          && request.auth.uid == uid
+          && resource.data.deckId == deckId
+          && request.resource.data.deckId == deckId
+          && request.resource.data.access == "study";
+
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     match /decks/{deckId} {
-      // Published decks are readable by anyone with the link.
-      allow get: if resource.data.published == true ||
-        (isAdmin() && resource.data.createdBy == request.auth.uid);
+      // Anyone with the exact link can open a published deck.
+      allow get: if resource.data.published == true
+        || (signedIn() && resource.data.ownerId == request.auth.uid);
 
-      // Only admins can list decks, and queries must only return their own decks.
-      allow list: if isAdmin();
+      // Listing is only useful for the owner's query:
+      // where("ownerId", "==", request.auth.uid)
+      allow list: if signedIn() && resource.data.ownerId == request.auth.uid;
 
-      allow create: if isAdmin()
-        && request.resource.data.createdBy == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
 
-      allow update, delete: if isAdmin()
-        && resource.data.createdBy == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid;
     }
 
     match /progress/{progressId} {
       allow get: if signedIn() && (
-        resource.data.studentId == request.auth.uid ||
-        ownsDeck(resource.data.deckId)
+        resource.data.studentId == request.auth.uid
+        || ownsDeck(resource.data.deckId)
       );
 
-      allow list: if signedIn() && (
-        resource.data.studentId == request.auth.uid ||
-        ownsDeck(resource.data.deckId)
-      );
+      // Owner queries must constrain by deckId.
+      allow list: if signedIn() && ownsDeck(resource.data.deckId);
 
       allow create: if signedIn()
         && request.resource.data.studentId == request.auth.uid
-        && get(/databases/$(database)/documents/decks/$(request.resource.data.deckId)).data.published == true;
+        && publishedDeck(request.resource.data.deckId);
 
       allow update: if signedIn()
         && resource.data.studentId == request.auth.uid

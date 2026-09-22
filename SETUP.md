@@ -1,51 +1,44 @@
-# Flashcards — Share-Link Version
+# Flashcards — Linked Library Model
 
-This version uses direct deck links instead of classes and class codes.
+This version matches the behavior you described:
 
-## Student flow
+- There is only one account type.
+- Any signed-in user can create their own decks.
+- The deck creator is the owner.
+- The owner can edit, publish, share, view progress, or delete the deck.
+- A student opens a study link and the deck is automatically added to **Shared With Me**.
+- The student receives **study** access only.
+- The student does not receive a copied deck.
+- The library stores only a reference to the owner's deck.
+- When the owner edits the master deck, students see the updated version the next time the deck is loaded.
 
-Teacher posts a link like:
+## Firestore collections
 
-`https://YOUR-SITE/Flashcards/?deck=FIREBASE_DECK_ID`
+- `users/{uid}`
+- `users/{uid}/library/{deckId}` — linked study-only deck references
+- `decks/{deckId}` — one canonical/master deck
+- `progress/{deckId}_{studentId}` — per-student study progress
 
-Student clicks it and can study immediately.
+No `admins`, `classes`, or `classCodes` collection is required.
 
-Google sign-in is optional for studying. It is required only if the student wants progress saved to their name.
+## Important setup step
 
-## Teacher flow
+Replace your current Firestore Rules with the contents of `firestore.rules`, then click **Publish**.
 
-1. Sign in with Google.
-2. Teacher/admin access is enabled with an `admins/{uid}` document.
-3. Create a deck.
-4. Click **Copy Link**.
-5. Paste the link into Google Classroom.
-6. Use **Progress** on the deck to see named student progress.
+## Shared-link flow
 
-## Important Firestore change
+Teacher/owner:
 
-This version uses:
-- `decks`
-- `progress`
-- `users`
-- `admins`
+1. Create a deck.
+2. Click **Copy Study Link**.
+3. Paste the link into Google Classroom.
 
-It no longer uses:
-- `classes`
-- `classCodes`
-- class membership documents
+Student:
 
-Replace your current Firestore Rules with the contents of `firestore.rules` and click **Publish**.
-
-## Teacher/admin setup
-
-If your teacher account is not already enabled:
-
-1. Sign in to the site.
-2. Copy the Firebase UID shown.
-3. In Firestore, create collection `admins`.
-4. Create a document whose Document ID is exactly the teacher UID.
-5. Add any field such as `enabled = true`.
-6. Refresh the site and click **Check Teacher Access**.
+1. Click the link.
+2. Sign in with Google if needed.
+3. Flashcards automatically adds the deck to **Shared With Me** with study-only access.
+4. The student can study but cannot edit the deck.
 
 ## GitHub files
 
@@ -56,6 +49,4 @@ Upload these files together in the repository root:
 - `app.js`
 - `firebase-config.js`
 
-The following can remain in the repo for reference:
-- `firestore.rules`
-- `SETUP.md`
+`firestore.rules` and `SETUP.md` can stay in the repository for reference.

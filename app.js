@@ -1,8 +1,7 @@
 import { firebaseConfig } from "./firebase-config.js";
 
 const FIREBASE_VERSION = "12.19.0";
-const THEME_KEY = "flashcards_share_theme";
-const GUEST_KEY_PREFIX = "flashcards_guest_progress_";
+const THEME_KEY = "flashcards_linked_theme";
 
 const [appModule, authModule, firestoreModule] = await Promise.all([
   import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`),
@@ -39,14 +38,14 @@ const state = {
   auth: null,
   db: null,
   user: null,
-  isAdmin: false,
+  ownedDecks: [],
+  sharedDecks: [],
   selectedDeck: null,
   currentProgress: null,
   studyMode: "standard",
   sessionCards: [],
   sessionIndex: 0,
-  sessionRatings: [],
-  teacherDecks: []
+  sessionRatings: []
 };
 
 const sampleDeck = {
@@ -80,6 +79,7 @@ function showMessage(message, type = "", timeout = 4200) {
   el.textContent = message;
   el.className = `global-message ${type}`.trim();
   el.classList.remove("hidden");
+
   clearTimeout(showMessage._timer);
   if (timeout) {
     showMessage._timer = setTimeout(() => el.classList.add("hidden"), timeout);
@@ -114,16 +114,21 @@ function parsePairs(text) {
       const front = parts.shift()?.trim();
       const back = parts.join("=").trim();
       if (!front || !back) return null;
+
       return { id: uid("card"), front, back };
     })
     .filter(Boolean);
+}
+
+function cardsToText(cards = []) {
+  return cards.map(card => `${card.front} = ${card.back}`).join("\n");
 }
 
 function normalizeText(value) {
   return String(value || "").normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-function getDeckIdFromUrl() {
+function deckParam() {
   return new URL(window.location.href).searchParams.get("deck");
 }
 
@@ -135,6 +140,16 @@ function buildShareLink(deckId) {
   return url.toString();
 }
 
+function clearDeckParam() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("deck");
+  history.pushState({}, "", url);
+}
+
+function isOwner(deck = state.selectedDeck) {
+  return Boolean(deck && state.user && deck.ownerId === state.user.uid);
+}
+
 function progressDocId(deckId, studentId) {
   return `${deckId}_${studentId}`;
 }
@@ -144,6 +159,7 @@ function progressStats(progress) {
   const ratingCount = Number(progress.ratingCount || 0);
   const ratingTotal = Number(progress.ratingTotal || 0);
   const avg = ratingCount ? ratingTotal / ratingCount : 0;
+
   return {
     studied: Number(progress.studied || 0),
     ratingCount,
@@ -151,22 +167,6 @@ function progressStats(progress) {
     avg,
     mastery: Math.round((avg / 5) * 100)
   };
-}
-
-function guestProgressKey(deckId) {
-  return `${GUEST_KEY_PREFIX}${deckId}`;
-}
-
-function loadGuestProgress(deckId) {
-  try {
-    return JSON.parse(localStorage.getItem(guestProgressKey(deckId))) || null;
-  } catch {
-    return null;
-  }
-}
-
-function saveGuestProgress(deckId, progress) {
-  localStorage.setItem(guestProgressKey(deckId), JSON.stringify(progress));
 }
 
 function timestampToText(value) {
@@ -184,9 +184,8 @@ function timestampToText(value) {
   }
 }
 
-function setUserChip(user, role) {
+function setUserChip(user) {
   document.getElementById("userName").textContent = user.displayName || user.email || "User";
-  document.getElementById("userRole").textContent = role;
 
   const photo = document.getElementById("userPhoto");
   photo.src = user.photoURL || "";
@@ -202,23 +201,12 @@ function clearUserChip() {
 }
 
 async function ensureUserProfile() {
-  if (!state.user) return;
   await setDoc(doc(state.db, "users", state.user.uid), {
     displayName: state.user.displayName || "",
     email: state.user.email || "",
     photoURL: state.user.photoURL || "",
     updatedAt: serverTimestamp()
   }, { merge: true });
-}
-
-async function checkAdmin() {
-  if (!state.user) {
-    state.isAdmin = false;
-    return false;
-  }
-  const snap = await getDoc(doc(state.db, "admins", state.user.uid));
-  state.isAdmin = snap.exists();
-  return state.isAdmin;
 }
 
 async function signInGoogle() {
@@ -231,82 +219,274 @@ async function signInGoogle() {
   }
 }
 
-async function routeApp({ showPending = false } = {}) {
-  const deckId = getDeckIdFromUrl();
-
-  if (state.user) {
-    await ensureUserProfile();
-    await checkAdmin();
-    setUserChip(state.user, state.isAdmin ? "Teacher" : "Student");
-  } else {
-    clearUserChip();
-    state.isAdmin = false;
-  }
-
-  if (deckId) {
-    await openSharedDeck(deckId);
-    return;
-  }
-
+async function routeAfterAuth() {
   if (!state.user) {
-    showView("homeView");
+    clearUserChip();
+
+    const sharedId = deckParam();
+    if (sharedId) {
+      try {
+        const snap = await getDoc(doc(state.db, "decks", sharedId));
+        if (snap.exists() && snap.data().published === true) {
+          document.getElementById("sharedSignInTitle").textContent =
+            snap.data().name || "A deck was shared with you.";
+          showView("sharedSignInView");
+          return;
+        }
+      } catch (_) {}
+    }
+
+    showView("loginView");
     return;
   }
 
-  if (state.isAdmin) {
-    await loadTeacherDecks();
-    showView("teacherView");
+  setUserChip(state.user);
+  await ensureUserProfile();
+
+  const sharedId = deckParam();
+  if (sharedId) {
+    await acceptSharedDeck(sharedId);
     return;
   }
 
-  if (showPending && !sessionStorage.getItem("flashcards_student_confirmed")) {
-    document.getElementById("uidDisplay").textContent = state.user.uid;
-    showView("accessPendingView");
-    return;
-  }
-
-  showView("studentIdleView");
+  await loadLibrary();
+  showView("libraryView");
 }
 
-async function openSharedDeck(deckId) {
+async function loadLibrary() {
+  await Promise.all([loadOwnedDecks(), loadSharedDecks()]);
+  renderLibrary();
+}
+
+async function loadOwnedDecks() {
+  const q = query(
+    collection(state.db, "decks"),
+    where("ownerId", "==", state.user.uid)
+  );
+
+  const snap = await getDocs(q);
+  state.ownedDecks = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+async function loadSharedDecks() {
+  const refs = await getDocs(collection(state.db, "users", state.user.uid, "library"));
+  const results = [];
+
+  for (const refSnap of refs.docs) {
+    const refData = refSnap.data();
+
+    try {
+      const deckSnap = await getDoc(doc(state.db, "decks", refData.deckId || refSnap.id));
+      if (deckSnap.exists()) {
+        const deck = { id: deckSnap.id, ...deckSnap.data(), libraryAccess: refData.access || "study" };
+
+        // Do not duplicate an owned deck in Shared With Me.
+        if (deck.ownerId !== state.user.uid) {
+          results.push(deck);
+        }
+      } else {
+        results.push({
+          id: refData.deckId || refSnap.id,
+          name: refData.deckName || "Unavailable deck",
+          unavailable: true,
+          libraryAccess: refData.access || "study"
+        });
+      }
+    } catch {
+      results.push({
+        id: refData.deckId || refSnap.id,
+        name: refData.deckName || "Unavailable deck",
+        unavailable: true,
+        libraryAccess: refData.access || "study"
+      });
+    }
+  }
+
+  state.sharedDecks = results.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+function renderLibrary() {
+  document.getElementById("ownedCount").textContent = state.ownedDecks.length;
+  document.getElementById("sharedCount").textContent = state.sharedDecks.length;
+
+  const ownedGrid = document.getElementById("ownedDeckGrid");
+  const sharedGrid = document.getElementById("sharedDeckGrid");
+
+  if (!state.ownedDecks.length) {
+    ownedGrid.innerHTML = `<div class="empty-state">You have not created a deck yet.</div>`;
+  } else {
+    ownedGrid.innerHTML = state.ownedDecks.map(deck => `
+      <article class="card deck-card">
+        <div>
+          <span class="eyebrow">Owner</span>
+          <h3>${escapeHtml(deck.name)}</h3>
+          <p>${deck.cards?.length || 0} cards · ${deck.published ? "Study link active" : "Private draft"}</p>
+        </div>
+
+        <div class="deck-card-footer">
+          <span class="badge">${deck.published ? "Published" : "Draft"}</span>
+
+          <div class="deck-actions">
+            <button class="primary-btn" data-open-owned="${deck.id}">Study</button>
+            <button class="secondary-btn" data-edit-deck="${deck.id}">Edit</button>
+            <button class="secondary-btn" data-share-deck="${deck.id}" ${deck.published ? "" : "disabled"}>Share</button>
+            <button class="secondary-btn" data-progress-deck="${deck.id}">Progress</button>
+            <button class="danger-btn" data-delete-deck="${deck.id}">Delete</button>
+          </div>
+        </div>
+      </article>
+    `).join("");
+  }
+
+  if (!state.sharedDecks.length) {
+    sharedGrid.innerHTML = `<div class="empty-state">Open a shared study link to add a deck here.</div>`;
+  } else {
+    sharedGrid.innerHTML = state.sharedDecks.map(deck => `
+      <article class="card deck-card">
+        <div>
+          <span class="eyebrow">Study access</span>
+          <h3>${escapeHtml(deck.name)}</h3>
+          <p>${
+            deck.unavailable
+              ? "This deck is unavailable or no longer published."
+              : `${deck.cards?.length || 0} cards · by ${escapeHtml(deck.ownerName || "Owner")}`
+          }</p>
+        </div>
+
+        <div class="deck-card-footer">
+          <span class="badge">Study only</span>
+
+          <div class="deck-actions">
+            <button class="primary-btn" data-open-shared="${deck.id}" ${deck.unavailable ? "disabled" : ""}>Study</button>
+            <button class="secondary-btn" data-remove-shared="${deck.id}">Remove</button>
+          </div>
+        </div>
+      </article>
+    `).join("");
+  }
+}
+
+async function acceptSharedDeck(deckId) {
   try {
     const snap = await getDoc(doc(state.db, "decks", deckId));
+
     if (!snap.exists()) {
-      showMessage("This deck link is invalid or the deck was removed.", "error", 0);
-      showView(state.user && state.isAdmin ? "teacherView" : "homeView");
+      clearDeckParam();
+      showMessage("This deck no longer exists.", "error");
+      await loadLibrary();
+      showView("libraryView");
       return;
     }
 
-    state.selectedDeck = { id: snap.id, ...snap.data() };
+    const deck = { id: snap.id, ...snap.data() };
 
-    if (!state.selectedDeck.published && !(state.user && state.isAdmin)) {
-      showMessage("This deck is not currently published.", "error", 0);
-      showView("homeView");
+    if (deck.ownerId === state.user.uid) {
+      state.selectedDeck = deck;
+      clearDeckParam();
+      await openDeck(deck);
       return;
     }
 
-    await loadCurrentProgress();
+    if (!deck.published) {
+      clearDeckParam();
+      showMessage("This study link is no longer active.", "error");
+      await loadLibrary();
+      showView("libraryView");
+      return;
+    }
+
+    await setDoc(doc(state.db, "users", state.user.uid, "library", deck.id), {
+      deckId: deck.id,
+      deckName: deck.name,
+      ownerId: deck.ownerId,
+      access: "study",
+      addedAt: serverTimestamp()
+    }, { merge: true });
+
+    state.selectedDeck = deck;
+    clearDeckParam();
+    showMessage(`"${deck.name}" was added to Shared With Me.`, "success");
+    await openDeck(deck);
+  } catch (err) {
+    handleFirebaseError(err, "Could not add this shared deck.");
+  }
+}
+
+async function createDeck() {
+  const name = document.getElementById("newDeckName").value.trim();
+  const cards = parsePairs(document.getElementById("newDeckCards").value);
+  const published = document.getElementById("newDeckPublished").checked;
+
+  if (!name) return showMessage("Enter a deck name.", "error");
+  if (!cards.length) return showMessage("Add at least one valid card.", "error");
+
+  try {
+    const ref = await addDoc(collection(state.db, "decks"), {
+      name,
+      cards,
+      ownerId: state.user.uid,
+      ownerName: state.user.displayName || state.user.email || "Owner",
+      published,
+      accessMode: "study",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    document.getElementById("newDeckName").value = "";
+    document.getElementById("newDeckCards").value = "";
+    document.getElementById("newDeckPublished").checked = true;
+    document.getElementById("newDeckPanel").classList.add("hidden");
+
+    await loadLibrary();
+
+    if (published) {
+      await copyShareLink(ref.id);
+      showMessage("Deck created. Study link copied.", "success");
+    } else {
+      showMessage("Deck created as a private draft.", "success");
+    }
+  } catch (err) {
+    handleFirebaseError(err, "Could not create the deck.");
+  }
+}
+
+function findOwnedDeck(deckId) {
+  return state.ownedDecks.find(d => d.id === deckId);
+}
+
+function findSharedDeck(deckId) {
+  return state.sharedDecks.find(d => d.id === deckId);
+}
+
+async function openDeck(deckOrId) {
+  try {
+    let deck = typeof deckOrId === "string"
+      ? findOwnedDeck(deckOrId) || findSharedDeck(deckOrId)
+      : deckOrId;
+
+    if (!deck || deck.unavailable) {
+      const snap = await getDoc(doc(state.db, "decks", typeof deckOrId === "string" ? deckOrId : deckOrId.id));
+      if (!snap.exists()) return showMessage("This deck is unavailable.", "error");
+      deck = { id: snap.id, ...snap.data() };
+    } else {
+      // Always reload the canonical deck so shared users receive owner updates.
+      const snap = await getDoc(doc(state.db, "decks", deck.id));
+      if (!snap.exists()) return showMessage("This deck is unavailable.", "error");
+      deck = { id: snap.id, ...snap.data() };
+    }
+
+    state.selectedDeck = deck;
+    await loadProgressForSelectedDeck();
     renderDeckLanding();
     showView("deckLandingView");
   } catch (err) {
-    handleFirebaseError(err, "Could not open this deck.");
+    handleFirebaseError(err, "Could not open the deck.");
   }
 }
 
-async function loadCurrentProgress() {
-  if (!state.selectedDeck) return;
-
-  if (!state.user || state.isAdmin) {
-    state.currentProgress = loadGuestProgress(state.selectedDeck.id) || {
-      deckId: state.selectedDeck.id,
-      studied: 0,
-      ratingCount: 0,
-      ratingTotal: 0,
-      cards: {}
-    };
-    return;
-  }
-
+async function loadProgressForSelectedDeck() {
   const id = progressDocId(state.selectedDeck.id, state.user.uid);
   const snap = await getDoc(doc(state.db, "progress", id));
 
@@ -328,171 +508,98 @@ async function loadCurrentProgress() {
 
 function renderDeckLanding() {
   const deck = state.selectedDeck;
+  const owner = isOwner(deck);
   const stats = progressStats(state.currentProgress);
 
+  document.getElementById("landingAccessLabel").textContent = owner ? "Your deck" : "Shared deck";
   document.getElementById("landingDeckTitle").textContent = deck.name;
   document.getElementById("landingDeckMeta").textContent =
-    `${deck.cards?.length || 0} cards · Shared flashcard deck`;
+    owner
+      ? `${deck.cards?.length || 0} cards · You own this deck`
+      : `${deck.cards?.length || 0} cards · by ${deck.ownerName || "Owner"} · Study access`;
+
   document.getElementById("landingCardCount").textContent = deck.cards?.length || 0;
+  document.getElementById("landingMastery").textContent = `${stats.mastery}%`;
+  document.getElementById("landingStudied").textContent = stats.studied;
 
-  const namedProgress = state.user && !state.isAdmin;
-  const hasGuestProgress = !namedProgress && stats.studied > 0;
-
-  document.getElementById("landingMastery").textContent =
-    (namedProgress || hasGuestProgress) ? `${stats.mastery}%` : "—";
-  document.getElementById("landingStudied").textContent =
-    (namedProgress || hasGuestProgress) ? stats.studied : "—";
-
-  const guestNotice = document.getElementById("guestNotice");
-  const signInBtn = document.getElementById("deckSignInBtn");
-
-  if (namedProgress) {
-    guestNotice.classList.add("hidden");
-    signInBtn.classList.add("hidden");
-  } else if (state.isAdmin) {
-    guestNotice.innerHTML =
-      `<strong>Teacher preview</strong><span>You can study this deck without affecting student progress.</span>`;
-    guestNotice.classList.remove("hidden");
-    signInBtn.classList.add("hidden");
-  } else {
-    guestNotice.innerHTML =
-      `<strong>Studying as guest</strong><span>You can study now. Sign in with Google if you want your progress saved for your teacher.</span>`;
-    guestNotice.classList.remove("hidden");
-    signInBtn.classList.remove("hidden");
-  }
+  document.getElementById("linkedNotice").classList.toggle("hidden", owner);
+  document.getElementById("landingEditBtn").classList.toggle("hidden", !owner);
+  document.getElementById("landingShareBtn").classList.toggle("hidden", !owner);
+  document.getElementById("landingShareBtn").disabled = !deck.published;
 }
 
-async function loadTeacherDecks() {
-  try {
-    const q = query(
-      collection(state.db, "decks"),
-      where("createdBy", "==", state.user.uid)
-    );
-    const snap = await getDocs(q);
-
-    state.teacherDecks = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
-
-    renderTeacherDecks();
-  } catch (err) {
-    handleFirebaseError(err, "Could not load your decks.");
-  }
-}
-
-function renderTeacherDecks() {
-  const grid = document.getElementById("teacherDeckGrid");
-
-  if (!state.teacherDecks.length) {
-    grid.innerHTML = `<div class="empty-state">No decks yet. Create your first shareable deck.</div>`;
-    return;
+function openEditDeck(deckId = state.selectedDeck?.id) {
+  const deck = findOwnedDeck(deckId) || (isOwner() ? state.selectedDeck : null);
+  if (!deck || deck.ownerId !== state.user.uid) {
+    return showMessage("Only the deck owner can edit this deck.", "error");
   }
 
-  grid.innerHTML = state.teacherDecks.map(deck => `
-    <article class="card deck-card">
-      <div>
-        <span class="eyebrow">${deck.published ? "Published" : "Draft"}</span>
-        <h3>${escapeHtml(deck.name)}</h3>
-        <p>${deck.cards?.length || 0} cards</p>
-      </div>
-
-      <div class="deck-card-footer">
-        <span class="badge">${deck.published ? "Link active" : "Link disabled"}</span>
-
-        <div class="deck-actions">
-          <button class="primary-btn" data-copy-link="${deck.id}" ${deck.published ? "" : "disabled"}>
-            Copy Link
-          </button>
-          <button class="secondary-btn" data-preview-deck="${deck.id}">Preview</button>
-          <button class="secondary-btn" data-progress-deck="${deck.id}">Progress</button>
-          <button class="secondary-btn" data-toggle-deck="${deck.id}" data-published="${deck.published ? "1" : "0"}">
-            ${deck.published ? "Unpublish" : "Publish"}
-          </button>
-          <button class="danger-btn" data-delete-deck="${deck.id}">Delete</button>
-        </div>
-      </div>
-    </article>
-  `).join("");
+  state.selectedDeck = deck;
+  document.getElementById("editDeckName").value = deck.name;
+  document.getElementById("editDeckCards").value = cardsToText(deck.cards);
+  document.getElementById("editDeckPublished").checked = Boolean(deck.published);
+  showView("editDeckView");
 }
 
-async function createDeck() {
-  const name = document.getElementById("deckNameInput").value.trim();
-  const cards = parsePairs(document.getElementById("deckCardsInput").value);
-  const published = document.getElementById("publishDeckInput").checked;
+async function saveDeckChanges() {
+  const name = document.getElementById("editDeckName").value.trim();
+  const cards = parsePairs(document.getElementById("editDeckCards").value);
+  const published = document.getElementById("editDeckPublished").checked;
 
   if (!name) return showMessage("Enter a deck name.", "error");
-  if (!cards.length) return showMessage("Add at least one valid vocabulary pair.", "error");
+  if (!cards.length) return showMessage("Add at least one valid card.", "error");
 
   try {
-    const ref = await addDoc(collection(state.db, "decks"), {
+    await updateDoc(doc(state.db, "decks", state.selectedDeck.id), {
       name,
       cards,
       published,
-      createdBy: state.user.uid,
-      createdByName: state.user.displayName || state.user.email || "Teacher",
-      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
 
-    document.getElementById("deckNameInput").value = "";
-    document.getElementById("deckCardsInput").value = "";
-    document.getElementById("publishDeckInput").checked = true;
-    document.getElementById("newDeckPanel").classList.add("hidden");
+    // Update local selected deck. Shared users still reference the same deck ID.
+    state.selectedDeck = {
+      ...state.selectedDeck,
+      name,
+      cards,
+      published
+    };
 
-    await loadTeacherDecks();
-
-    if (published) {
-      await copyShareLink(ref.id);
-      showMessage("Deck created and share link copied.", "success");
-    } else {
-      showMessage("Draft deck created.", "success");
-    }
+    await loadLibrary();
+    showMessage("Deck updated. Shared users will receive the new version.", "success");
+    await openDeck(state.selectedDeck.id);
   } catch (err) {
-    handleFirebaseError(err, "Could not create the deck.");
+    handleFirebaseError(err, "Could not save the deck.");
   }
 }
 
 async function copyShareLink(deckId) {
   const link = buildShareLink(deckId);
+
   try {
     await navigator.clipboard.writeText(link);
-    showMessage("Share link copied. Paste it into Google Classroom.", "success");
+    showMessage("Study link copied. Paste it into Google Classroom.", "success");
   } catch {
-    window.prompt("Copy this deck link:", link);
+    window.prompt("Copy this study link:", link);
   }
 }
 
-async function previewDeck(deckId) {
-  const deck = state.teacherDecks.find(d => d.id === deckId);
-  if (!deck) return;
-
-  const url = new URL(window.location.href);
-  url.search = "";
-  url.searchParams.set("deck", deckId);
-  history.pushState({}, "", url);
-
-  await openSharedDeck(deckId);
-}
-
-async function toggleDeck(deckId, isPublished) {
+async function removeSharedDeck(deckId) {
   try {
-    await updateDoc(doc(state.db, "decks", deckId), {
-      published: !isPublished,
-      updatedAt: serverTimestamp()
-    });
-    await loadTeacherDecks();
-    showMessage(!isPublished ? "Deck published. Its link is active." : "Deck unpublished.", "success");
+    await deleteDoc(doc(state.db, "users", state.user.uid, "library", deckId));
+    await loadLibrary();
+    showMessage("Deck removed from Shared With Me.", "success");
   } catch (err) {
-    handleFirebaseError(err, "Could not update the deck.");
+    handleFirebaseError(err, "Could not remove the shared deck.");
   }
 }
 
-async function deleteDeckById(deckId) {
-  if (!confirm("Delete this deck? Student progress records will remain in Firestore.")) return;
+async function deleteOwnedDeck(deckId) {
+  if (!confirm("Delete this deck? Students who saved it will no longer be able to open it.")) return;
 
   try {
     await deleteDoc(doc(state.db, "decks", deckId));
-    await loadTeacherDecks();
+    await loadLibrary();
     showMessage("Deck deleted.", "success");
   } catch (err) {
     handleFirebaseError(err, "Could not delete the deck.");
@@ -500,12 +607,12 @@ async function deleteDeckById(deckId) {
 }
 
 async function openProgress(deckId) {
-  const deck = state.teacherDecks.find(d => d.id === deckId);
+  const deck = findOwnedDeck(deckId);
   if (!deck) return;
 
   state.selectedDeck = deck;
-  document.getElementById("progressDeckTitle").textContent = deck.name;
-  showView("teacherProgressView");
+  document.getElementById("progressDeckTitle").textContent = `${deck.name} Progress`;
+  showView("progressView");
   await loadProgressDashboard();
 }
 
@@ -520,19 +627,21 @@ async function loadProgressDashboard() {
     );
 
     const snap = await getDocs(q);
+
     const rows = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => p.studentId !== state.user.uid)
       .sort((a, b) =>
         String(a.studentName || a.studentEmail || "").localeCompare(
           String(b.studentName || b.studentEmail || "")
         )
       );
 
-    document.getElementById("progressStudentCount").textContent =
+    document.getElementById("progressCount").textContent =
       `${rows.length} student${rows.length === 1 ? "" : "s"}`;
 
     if (!rows.length) {
-      host.innerHTML = `<div class="empty-state">No signed-in student progress yet.</div>`;
+      host.innerHTML = `<div class="empty-state">No student progress yet.</div>`;
       return;
     }
 
@@ -572,7 +681,6 @@ async function loadProgressDashboard() {
 }
 
 function openStudySetup() {
-  if (!state.selectedDeck) return;
   document.getElementById("setupDeckTitle").textContent = state.selectedDeck.name;
   showView("studySetupView");
 }
@@ -649,6 +757,7 @@ function checkTypingAnswer() {
     return;
   }
 
+  // Typing mode always asks front -> back.
   const correct = normalizeText(given) === normalizeText(card.back);
   result.textContent = correct ? "Correct!" : "Not quite — compare with the answer below.";
   result.className = `typing-result ${correct ? "correct" : "incorrect"}`;
@@ -660,54 +769,39 @@ async function rateCurrentCard(rating) {
   if (!card) return;
 
   rating = Number(rating);
-  const p = state.currentProgress || {
-    deckId: state.selectedDeck.id,
-    studied: 0,
-    ratingCount: 0,
-    ratingTotal: 0,
-    cards: {}
-  };
-
+  const p = state.currentProgress;
   p.cards = p.cards || {};
-  const cp = p.cards[card.id] || { count: 0, total: 0, seen: 0 };
 
+  const cp = p.cards[card.id] || { count: 0, total: 0, seen: 0 };
   cp.count += 1;
   cp.total += rating;
   cp.seen += 1;
-
   p.cards[card.id] = cp;
+
   p.studied = Number(p.studied || 0) + 1;
   p.ratingCount = Number(p.ratingCount || 0) + 1;
   p.ratingTotal = Number(p.ratingTotal || 0) + rating;
 
-  state.currentProgress = p;
   state.sessionRatings.push(rating);
 
   try {
-    if (state.user && !state.isAdmin) {
-      const id = progressDocId(state.selectedDeck.id, state.user.uid);
-      p.id = id;
-
-      await setDoc(doc(state.db, "progress", id), {
-        deckId: state.selectedDeck.id,
-        deckName: state.selectedDeck.name,
-        studentId: state.user.uid,
-        studentName: state.user.displayName || "",
-        studentEmail: state.user.email || "",
-        studied: p.studied,
-        ratingCount: p.ratingCount,
-        ratingTotal: p.ratingTotal,
-        cards: p.cards,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    } else {
-      saveGuestProgress(state.selectedDeck.id, p);
-    }
+    await setDoc(doc(state.db, "progress", p.id), {
+      deckId: state.selectedDeck.id,
+      deckName: state.selectedDeck.name,
+      studentId: state.user.uid,
+      studentName: state.user.displayName || "",
+      studentEmail: state.user.email || "",
+      studied: p.studied,
+      ratingCount: p.ratingCount,
+      ratingTotal: p.ratingTotal,
+      cards: p.cards,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
 
     state.sessionIndex += 1;
     renderStudyCard();
   } catch (err) {
-    handleFirebaseError(err, "Progress could not be saved. Try again.");
+    handleFirebaseError(err, "Progress could not be saved.");
   }
 }
 
@@ -727,19 +821,13 @@ function finishSession() {
   showView("completeView");
 }
 
-function clearDeckParam() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete("deck");
-  history.pushState({}, "", url);
-}
-
 function handleFirebaseError(err, fallback) {
   console.error(err);
 
   let message = fallback;
 
   if (err?.code === "permission-denied") {
-    message = "Firebase blocked this request. Replace and publish the new Firestore Rules from this build.";
+    message = "Firebase blocked this request. Publish the new Firestore Rules included with this build.";
   } else if (err?.code === "auth/popup-blocked") {
     message = "Your browser blocked the Google sign-in popup. Allow popups and try again.";
   } else if (err?.code === "auth/unauthorized-domain") {
@@ -778,8 +866,9 @@ async function initializeFirebase() {
 
     onAuthStateChanged(state.auth, async user => {
       state.user = user;
+
       try {
-        await routeApp({ showPending: true });
+        await routeAfterAuth();
       } catch (err) {
         handleFirebaseError(err, "Could not load Flashcards.");
       }
@@ -792,22 +881,26 @@ async function initializeFirebase() {
 }
 
 document.addEventListener("click", async e => {
-  const copy = e.target.closest("[data-copy-link]");
-  if (copy) return copyShareLink(copy.dataset.copyLink);
+  const openOwned = e.target.closest("[data-open-owned]");
+  if (openOwned) return openDeck(openOwned.dataset.openOwned);
 
-  const preview = e.target.closest("[data-preview-deck]");
-  if (preview) return previewDeck(preview.dataset.previewDeck);
+  const openShared = e.target.closest("[data-open-shared]");
+  if (openShared) return openDeck(openShared.dataset.openShared);
+
+  const edit = e.target.closest("[data-edit-deck]");
+  if (edit) return openEditDeck(edit.dataset.editDeck);
+
+  const share = e.target.closest("[data-share-deck]");
+  if (share) return copyShareLink(share.dataset.shareDeck);
 
   const progress = e.target.closest("[data-progress-deck]");
   if (progress) return openProgress(progress.dataset.progressDeck);
 
-  const toggle = e.target.closest("[data-toggle-deck]");
-  if (toggle) {
-    return toggleDeck(toggle.dataset.toggleDeck, toggle.dataset.published === "1");
-  }
+  const remove = e.target.closest("[data-remove-shared]");
+  if (remove) return removeSharedDeck(remove.dataset.removeShared);
 
-  const remove = e.target.closest("[data-delete-deck]");
-  if (remove) return deleteDeckById(remove.dataset.deleteDeck);
+  const deleteDeck = e.target.closest("[data-delete-deck]");
+  if (deleteDeck) return deleteOwnedDeck(deleteDeck.dataset.deleteDeck);
 
   const mode = e.target.closest("[data-mode]");
   if (mode) return startStudy(mode.dataset.mode);
@@ -816,42 +909,11 @@ document.addEventListener("click", async e => {
   if (rating) return rateCurrentCard(rating.dataset.rating);
 });
 
-document.getElementById("homeSignInBtn").addEventListener("click", signInGoogle);
-document.getElementById("deckSignInBtn").addEventListener("click", signInGoogle);
+document.getElementById("googleSignInBtn").addEventListener("click", signInGoogle);
+document.getElementById("sharedGoogleSignInBtn").addEventListener("click", signInGoogle);
 
 document.getElementById("signOutBtn").addEventListener("click", async () => {
-  sessionStorage.removeItem("flashcards_student_confirmed");
   await signOut(state.auth);
-});
-
-document.getElementById("continueStudentBtn").addEventListener("click", () => {
-  sessionStorage.setItem("flashcards_student_confirmed", "1");
-  if (getDeckIdFromUrl()) {
-    openSharedDeck(getDeckIdFromUrl());
-  } else {
-    showView("studentIdleView");
-  }
-});
-
-document.getElementById("refreshRoleBtn").addEventListener("click", async () => {
-  try {
-    if (await checkAdmin()) {
-      setUserChip(state.user, "Teacher");
-      clearDeckParam();
-      await loadTeacherDecks();
-      showView("teacherView");
-      showMessage("Teacher access enabled.", "success");
-    } else {
-      showMessage("Teacher access is not enabled yet.", "error");
-    }
-  } catch (err) {
-    handleFirebaseError(err, "Could not check teacher access.");
-  }
-});
-
-document.getElementById("copyUidBtn").addEventListener("click", async () => {
-  await navigator.clipboard.writeText(state.user.uid);
-  showMessage("UID copied.", "success");
 });
 
 document.getElementById("themeBtn").addEventListener("click", toggleTheme);
@@ -860,45 +922,60 @@ document.getElementById("brandBtn").addEventListener("click", async () => {
   clearDeckParam();
 
   if (!state.user) {
-    showView("homeView");
+    showView("loginView");
     return;
   }
 
-  if (state.isAdmin) {
-    await loadTeacherDecks();
-    showView("teacherView");
-  } else {
-    showView("studentIdleView");
-  }
+  await loadLibrary();
+  showView("libraryView");
 });
 
 document.getElementById("newDeckToggleBtn").addEventListener("click", () => {
   document.getElementById("newDeckPanel").classList.toggle("hidden");
 });
 
-document.getElementById("closeDeckPanelBtn").addEventListener("click", () => {
+document.getElementById("closeNewDeckBtn").addEventListener("click", () => {
   document.getElementById("newDeckPanel").classList.add("hidden");
 });
 
 document.getElementById("createDeckBtn").addEventListener("click", createDeck);
 
 document.getElementById("loadSampleBtn").addEventListener("click", () => {
-  document.getElementById("deckNameInput").value = sampleDeck.name;
-  document.getElementById("deckCardsInput").value = sampleDeck.text;
+  document.getElementById("newDeckName").value = sampleDeck.name;
+  document.getElementById("newDeckCards").value = sampleDeck.text;
 });
 
-document.getElementById("backToTeacherBtn").addEventListener("click", async () => {
-  await loadTeacherDecks();
-  showView("teacherView");
+document.getElementById("backFromEditBtn").addEventListener("click", async () => {
+  await loadLibrary();
+  showView("libraryView");
+});
+
+document.getElementById("cancelEditBtn").addEventListener("click", async () => {
+  await loadLibrary();
+  showView("libraryView");
+});
+
+document.getElementById("saveDeckBtn").addEventListener("click", saveDeckChanges);
+
+document.getElementById("startDeckBtn").addEventListener("click", openStudySetup);
+
+document.getElementById("landingEditBtn").addEventListener("click", () => {
+  openEditDeck(state.selectedDeck.id);
+});
+
+document.getElementById("landingShareBtn").addEventListener("click", () => {
+  copyShareLink(state.selectedDeck.id);
+});
+
+document.getElementById("backFromProgressBtn").addEventListener("click", async () => {
+  await loadLibrary();
+  showView("libraryView");
 });
 
 document.getElementById("refreshProgressBtn").addEventListener("click", loadProgressDashboard);
 
-document.getElementById("startDeckBtn").addEventListener("click", openStudySetup);
-
-document.getElementById("backToLandingBtn").addEventListener("click", () => {
-  renderDeckLanding();
-  showView("deckLandingView");
+document.getElementById("backToDeckBtn").addEventListener("click", async () => {
+  await openDeck(state.selectedDeck.id);
 });
 
 document.getElementById("revealBtn").addEventListener("click", revealAnswer);
@@ -911,12 +988,11 @@ document.getElementById("typingInput").addEventListener("keydown", e => {
 document.getElementById("exitStudyBtn").addEventListener("click", openStudySetup);
 document.getElementById("studyAgainBtn").addEventListener("click", () => startStudy(state.studyMode));
 
-document.getElementById("completeBackBtn").addEventListener("click", () => {
-  renderDeckLanding();
-  showView("deckLandingView");
+document.getElementById("completeBackBtn").addEventListener("click", async () => {
+  await openDeck(state.selectedDeck.id);
 });
 
-window.addEventListener("popstate", () => routeApp());
+window.addEventListener("popstate", () => routeAfterAuth());
 
 initTheme();
 initializeFirebase();

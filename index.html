@@ -22,7 +22,7 @@
         <img id="userPhoto" alt="" />
         <div>
           <strong id="userName"></strong>
-          <span id="userRole"></span>
+          <span>Flashcards account</span>
         </div>
       </div>
       <button id="themeBtn" class="icon-btn" aria-label="Toggle theme">◐</button>
@@ -34,23 +34,23 @@
     <div id="globalMessage" class="global-message hidden" role="status"></div>
 
     <section id="setupView" class="view">
-      <article class="card setup-card">
+      <article class="card center-card">
         <span class="eyebrow">Firebase setup</span>
         <h2>Flashcards needs Firebase.</h2>
-        <p>Check <strong>firebase-config.js</strong>, Authentication, and Firestore Rules.</p>
+        <p>Check the Firebase configuration and Firestore Rules.</p>
       </article>
     </section>
 
-    <section id="homeView" class="view">
-      <div class="home-grid">
+    <section id="loginView" class="view">
+      <div class="login-grid">
         <article class="card hero-card">
-          <span class="eyebrow">Shareable study decks</span>
-          <h2>Create a deck. Copy the link. Post it.</h2>
+          <span class="eyebrow">Your flashcard library</span>
+          <h2>Create, share, and study from one account.</h2>
           <p>
-            Teachers can share a deck directly in Google Classroom. Students click the link
-            and start studying—no class code and no joining step.
+            Create your own decks or open a study link someone shared with you.
+            Shared decks stay connected to the original, so updates appear automatically.
           </p>
-          <button id="homeSignInBtn" class="primary-btn google-btn">
+          <button id="googleSignInBtn" class="primary-btn google-btn">
             <span class="google-g">G</span>
             Continue with Google
           </button>
@@ -59,80 +59,67 @@
         <div class="feature-stack">
           <article class="card feature-row">
             <span class="feature-icon">🔗</span>
-            <div><strong>Direct links</strong><span>Every published deck gets its own share link.</span></div>
+            <div><strong>Linked decks</strong><span>Shared decks stay connected to the owner's master deck.</span></div>
           </article>
           <article class="card feature-row">
-            <span class="feature-icon">⚡</span>
-            <div><strong>No class code</strong><span>Students open the link and study immediately.</span></div>
+            <span class="feature-icon">🔒</span>
+            <div><strong>Study-only access</strong><span>Students cannot change decks shared in study mode.</span></div>
           </article>
           <article class="card feature-row">
-            <span class="feature-icon">📊</span>
-            <div><strong>Optional progress</strong><span>Google sign-in saves named student progress.</span></div>
+            <span class="feature-icon">↻</span>
+            <div><strong>Automatic updates</strong><span>When the owner edits a deck, everyone sees the latest version.</span></div>
           </article>
         </div>
       </div>
     </section>
 
-    <section id="studentIdleView" class="view">
-      <article class="card idle-card">
-        <span class="eyebrow">Student</span>
-        <h2>Open a deck link from your teacher.</h2>
-        <p>Your shared deck link can be posted in Google Classroom, an email, or anywhere else.</p>
-      </article>
-    </section>
-
-    <section id="accessPendingView" class="view">
-      <article class="card access-card">
-        <span class="eyebrow">Teacher setup</span>
-        <h2>Signed in successfully.</h2>
+    <section id="sharedSignInView" class="view">
+      <article class="card shared-signin-card">
+        <span class="eyebrow">Shared deck</span>
+        <h2 id="sharedSignInTitle">A deck was shared with you.</h2>
         <p>
-          This account currently has student access. To make it the teacher account, create an
-          <strong>admins</strong> document in Firestore with the UID below as the document ID.
+          Sign in with Google to add this deck to <strong>My Flashcards</strong>.
+          You will have study access only.
         </p>
-        <div class="uid-box">
-          <span>Your Firebase UID</span>
-          <code id="uidDisplay"></code>
-          <button id="copyUidBtn" class="secondary-btn">Copy UID</button>
-        </div>
-        <div class="inline-actions centered">
-          <button id="continueStudentBtn" class="primary-btn">Continue as Student</button>
-          <button id="refreshRoleBtn" class="secondary-btn">Check Teacher Access</button>
-        </div>
+        <button id="sharedGoogleSignInBtn" class="primary-btn google-btn">
+          <span class="google-g">G</span>
+          Sign in and add deck
+        </button>
       </article>
     </section>
 
-    <section id="teacherView" class="view">
+    <section id="libraryView" class="view">
       <div class="dashboard-head">
         <div>
-          <span class="eyebrow">Teacher dashboard</span>
-          <h2>My Decks</h2>
-          <p>Create a deck, publish it, then copy its link into Google Classroom.</p>
+          <span class="eyebrow">My Flashcards</span>
+          <h2>Your Library</h2>
+          <p>Owned decks can be edited. Shared decks stay linked to their owner.</p>
         </div>
-        <button id="newDeckToggleBtn" class="primary-btn">+ New Deck</button>
+        <button id="newDeckToggleBtn" class="primary-btn">+ Create Deck</button>
       </div>
 
       <article id="newDeckPanel" class="card form-card hidden">
         <div class="card-title-row">
           <div>
-            <span class="eyebrow">Deck creator</span>
-            <h3>Create a flashcard deck</h3>
+            <span class="eyebrow">New deck</span>
+            <h3>Create flashcards</h3>
           </div>
-          <button id="closeDeckPanelBtn" class="icon-btn">×</button>
+          <button id="closeNewDeckBtn" class="icon-btn">×</button>
         </div>
 
         <label>
           Deck name
-          <input id="deckNameInput" type="text" maxlength="100" placeholder="Bedroom Items" />
+          <input id="newDeckName" type="text" maxlength="100" placeholder="Bedroom Items" />
         </label>
 
         <label>
-          Vocabulary
-          <textarea id="deckCardsInput" rows="10" placeholder="Bed = လီၢ်မံ&#10;Blanket = ယၢ်လုး&#10;Pillow = ခိၣ်သခၢၣ်"></textarea>
+          Cards
+          <textarea id="newDeckCards" rows="10" placeholder="Bed = လီၢ်မံ&#10;Blanket = ယၢ်လုး&#10;Pillow = ခိၣ်သခၢၣ်"></textarea>
         </label>
 
         <div class="checkbox-row">
-          <input id="publishDeckInput" type="checkbox" checked />
-          <label for="publishDeckInput">Publish immediately so the share link works</label>
+          <input id="newDeckPublished" type="checkbox" checked />
+          <label for="newDeckPublished">Enable study link</label>
         </div>
 
         <div class="inline-actions">
@@ -143,15 +130,98 @@
         <p class="hint">Use <strong>=</strong>, a tab, or a comma between the front and back.</p>
       </article>
 
-      <div id="teacherDeckGrid" class="deck-grid"></div>
+      <div class="library-section">
+        <div class="section-title-row">
+          <div>
+            <span class="eyebrow">Created by you</span>
+            <h3>My Decks</h3>
+          </div>
+          <span id="ownedCount" class="badge">0</span>
+        </div>
+        <div id="ownedDeckGrid" class="deck-grid"></div>
+      </div>
+
+      <div class="library-section">
+        <div class="section-title-row">
+          <div>
+            <span class="eyebrow">Study access</span>
+            <h3>Shared With Me</h3>
+          </div>
+          <span id="sharedCount" class="badge">0</span>
+        </div>
+        <div id="sharedDeckGrid" class="deck-grid"></div>
+      </div>
     </section>
 
-    <section id="teacherProgressView" class="view">
+    <section id="editDeckView" class="view">
       <div class="section-head">
         <div>
-          <button id="backToTeacherBtn" class="back-link">← My decks</button>
-          <span class="eyebrow">Teacher progress</span>
-          <h2 id="progressDeckTitle"></h2>
+          <button id="backFromEditBtn" class="back-link">← My Flashcards</button>
+          <span class="eyebrow">Owner controls</span>
+          <h2>Edit Deck</h2>
+        </div>
+      </div>
+
+      <article class="card form-card">
+        <label>
+          Deck name
+          <input id="editDeckName" type="text" maxlength="100" />
+        </label>
+
+        <label>
+          Cards
+          <textarea id="editDeckCards" rows="14"></textarea>
+        </label>
+
+        <div class="checkbox-row">
+          <input id="editDeckPublished" type="checkbox" />
+          <label for="editDeckPublished">Enable study link</label>
+        </div>
+
+        <div class="inline-actions">
+          <button id="saveDeckBtn" class="primary-btn">Save Changes</button>
+          <button id="cancelEditBtn" class="secondary-btn">Cancel</button>
+        </div>
+
+        <p class="hint">
+          Saving changes updates the same master deck. Everyone who saved this deck will see the new version.
+        </p>
+      </article>
+    </section>
+
+    <section id="deckLandingView" class="view">
+      <article class="card deck-landing">
+        <div class="deck-landing-main">
+          <span id="landingAccessLabel" class="eyebrow">Study deck</span>
+          <h2 id="landingDeckTitle"></h2>
+          <p id="landingDeckMeta"></p>
+
+          <div id="linkedNotice" class="linked-notice hidden">
+            <strong>Linked to the owner's deck</strong>
+            <span>You have study access. Any changes made by the owner will appear here automatically.</span>
+          </div>
+
+          <div class="inline-actions">
+            <button id="startDeckBtn" class="primary-btn">Start Studying</button>
+            <button id="landingEditBtn" class="secondary-btn hidden">Edit Deck</button>
+            <button id="landingShareBtn" class="secondary-btn hidden">Copy Study Link</button>
+          </div>
+        </div>
+
+        <div class="landing-stats">
+          <div><span>Cards</span><strong id="landingCardCount">0</strong></div>
+          <div><span>Mastery</span><strong id="landingMastery">0%</strong></div>
+          <div><span>Studied</span><strong id="landingStudied">0</strong></div>
+        </div>
+      </article>
+    </section>
+
+    <section id="progressView" class="view">
+      <div class="section-head">
+        <div>
+          <button id="backFromProgressBtn" class="back-link">← My Flashcards</button>
+          <span class="eyebrow">Owner controls</span>
+          <h2 id="progressDeckTitle">Progress</h2>
         </div>
         <button id="refreshProgressBtn" class="secondary-btn">Refresh</button>
       </div>
@@ -159,48 +229,19 @@
       <article class="card table-card">
         <div class="card-title-row">
           <div>
-            <span class="eyebrow">Named students</span>
-            <h3>Study Progress</h3>
+            <span class="eyebrow">Study activity</span>
+            <h3>Student Progress</h3>
           </div>
-          <span id="progressStudentCount" class="badge">0 students</span>
+          <span id="progressCount" class="badge">0 students</span>
         </div>
         <div id="progressTable"></div>
-      </article>
-    </section>
-
-    <section id="deckLandingView" class="view">
-      <article class="card deck-landing">
-        <div class="deck-landing-main">
-          <span class="eyebrow">Shared deck</span>
-          <h2 id="landingDeckTitle"></h2>
-          <p id="landingDeckMeta"></p>
-
-          <div id="guestNotice" class="guest-notice">
-            <strong>Studying as guest</strong>
-            <span>You can study now. Sign in with Google if you want your progress saved for your teacher.</span>
-          </div>
-
-          <div class="inline-actions">
-            <button id="startDeckBtn" class="primary-btn">Start Studying</button>
-            <button id="deckSignInBtn" class="secondary-btn google-btn">
-              <span class="google-g">G</span>
-              Sign in to save progress
-            </button>
-          </div>
-        </div>
-
-        <div class="landing-stats">
-          <div><span>Cards</span><strong id="landingCardCount">0</strong></div>
-          <div><span>Your mastery</span><strong id="landingMastery">—</strong></div>
-          <div><span>Studied</span><strong id="landingStudied">—</strong></div>
-        </div>
       </article>
     </section>
 
     <section id="studySetupView" class="view">
       <div class="section-head">
         <div>
-          <button id="backToLandingBtn" class="back-link">← Deck</button>
+          <button id="backToDeckBtn" class="back-link">← Deck</button>
           <span class="eyebrow">Study</span>
           <h2 id="setupDeckTitle"></h2>
         </div>
@@ -283,7 +324,7 @@
         <div class="stats-grid">
           <div><span>Cards</span><strong id="completeCards">0</strong></div>
           <div><span>Average</span><strong id="completeAverage">0.0</strong></div>
-          <div><span>Mastery</span><strong id="completeMastery">—</strong></div>
+          <div><span>Mastery</span><strong id="completeMastery">0%</strong></div>
         </div>
 
         <div class="inline-actions centered">
