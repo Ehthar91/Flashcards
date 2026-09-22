@@ -1100,9 +1100,35 @@ function renderStudyCard() {
   document.getElementById("typingResult").textContent = "";
 }
 
+function toggleAnswerVisibility(forceState = null) {
+  const answerArea = document.getElementById("answerArea");
+  const revealBtn = document.getElementById("revealBtn");
+
+  const currentlyVisible = !answerArea.classList.contains("hidden");
+  const shouldShow = forceState === null ? !currentlyVisible : Boolean(forceState);
+
+  answerArea.classList.toggle("hidden", !shouldShow);
+  revealBtn.classList.toggle("hidden", shouldShow);
+}
+
 function revealAnswer() {
-  document.getElementById("answerArea").classList.remove("hidden");
-  document.getElementById("revealBtn").classList.add("hidden");
+  toggleAnswerVisibility(true);
+}
+
+function studyViewIsOpen() {
+  return !document.getElementById("studyView").classList.contains("hidden");
+}
+
+function answerIsVisible() {
+  return !document.getElementById("answerArea").classList.contains("hidden");
+}
+
+function targetIsInteractive(target) {
+  return Boolean(
+    target.closest(
+      "button, input, textarea, select, a, [contenteditable='true'], [data-rating]"
+    )
+  );
 }
 
 async function rateCurrentCard(rating) {
@@ -1315,7 +1341,10 @@ document.getElementById("deleteDeckBtn").addEventListener("click", deleteCurrent
 document.getElementById("studyClassBtn").addEventListener("click", startClassStudy);
 document.getElementById("refreshLearnersBtn").addEventListener("click", loadLearners);
 
-document.getElementById("revealBtn").addEventListener("click", revealAnswer);
+document.getElementById("revealBtn").addEventListener("click", e => {
+  e.stopPropagation();
+  toggleAnswerVisibility();
+});
 document.getElementById("exitStudyBtn").addEventListener("click", returnToClass);
 document.getElementById("studyAgainBtn").addEventListener("click", () => {
   if (state.studyScope === "class") {
@@ -1344,6 +1373,46 @@ document.getElementById("checkTypingBtn").addEventListener("click", () => {
   result.textContent = correct ? "Correct!" : "Not quite.";
   result.className = `typing-result ${correct ? "correct" : "incorrect"}`;
   document.getElementById("answerArea").classList.remove("hidden");
+});
+
+// Click anywhere on the flashcard surface to reveal/hide the answer.
+// Interactive controls are excluded so rating buttons and inputs do not toggle the card.
+document.querySelector(".study-card").addEventListener("click", e => {
+  if (!studyViewIsOpen()) return;
+  if (targetIsInteractive(e.target)) return;
+
+  toggleAnswerVisibility();
+});
+
+// Keyboard study controls:
+// Space = reveal/hide answer.
+// Number keys 1-5 = submit confidence rating while the answer is visible.
+document.addEventListener("keydown", e => {
+  if (!studyViewIsOpen()) return;
+
+  const active = document.activeElement;
+  const tag = active?.tagName?.toLowerCase();
+
+  if (
+    tag === "input" ||
+    tag === "textarea" ||
+    tag === "select" ||
+    active?.isContentEditable
+  ) {
+    return;
+  }
+
+  if (e.code === "Space" || e.key === " ") {
+    e.preventDefault();
+    toggleAnswerVisibility();
+    return;
+  }
+
+  if (!["1", "2", "3", "4", "5"].includes(e.key)) return;
+  if (!answerIsVisible()) return;
+
+  e.preventDefault();
+  rateCurrentCard(Number(e.key));
 });
 
 document.getElementById("modalBackdrop").addEventListener("click", e => {

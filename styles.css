@@ -871,3 +871,26 @@ body.dark .deck-status-badge.hidden {
     font-size: clamp(1.8rem, 9vw, 3.2rem);
   }
 }
+
+
+/* Click-to-reveal study interaction */
+.study-card {
+  cursor: pointer;
+}
+
+.study-card button,
+.study-card input,
+.study-card textarea,
+.study-card select {
+  cursor: pointer;
+}
+
+.study-card input,
+.study-card textarea {
+  cursor: text;
+}
+
+.confidence-buttons button::after {
+  content: " key";
+  display: none;
+}
