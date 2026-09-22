@@ -63,12 +63,19 @@ service cloud.firestore {
         || ownsDeck(resource.data.deckId)
       );
 
-      // Owner queries must constrain by deckId.
-      allow list: if signedIn() && ownsDeck(resource.data.deckId);
+      // Students may query only their own progress.
+      // Deck owners may query progress for decks they own.
+      allow list: if signedIn() && (
+        resource.data.studentId == request.auth.uid
+        || ownsDeck(resource.data.deckId)
+      );
 
       allow create: if signedIn()
         && request.resource.data.studentId == request.auth.uid
-        && publishedDeck(request.resource.data.deckId);
+        && (
+          publishedDeck(request.resource.data.deckId)
+          || ownsDeck(request.resource.data.deckId)
+        );
 
       allow update: if signedIn()
         && resource.data.studentId == request.auth.uid

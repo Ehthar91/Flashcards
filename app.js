@@ -488,10 +488,20 @@ async function openDeck(deckOrId) {
 
 async function loadProgressForSelectedDeck() {
   const id = progressDocId(state.selectedDeck.id, state.user.uid);
-  const snap = await getDoc(doc(state.db, "progress", id));
 
-  state.currentProgress = snap.exists()
-    ? { id: snap.id, ...snap.data() }
+  // Query the signed-in user's existing progress instead of doing a direct
+  // get on a document that may not exist yet. This avoids a Firestore
+  // permission-denied result on a brand-new study session.
+  const q = query(
+    collection(state.db, "progress"),
+    where("studentId", "==", state.user.uid)
+  );
+
+  const snap = await getDocs(q);
+  const existing = snap.docs.find(d => d.data().deckId === state.selectedDeck.id);
+
+  state.currentProgress = existing
+    ? { id: existing.id, ...existing.data() }
     : {
         id,
         deckId: state.selectedDeck.id,
