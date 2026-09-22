@@ -894,3 +894,174 @@ body.dark .deck-status-badge.hidden {
   content: " key";
   display: none;
 }
+
+
+/* =========================================================
+   3D DECK-OF-CARDS ICONS
+   Replaces the flat stack symbol with a more realistic card deck look.
+   ========================================================= */
+
+/* Sidebar deck icon */
+.sidebar-stack-icon {
+  width: 34px;
+  height: 28px;
+  position: relative;
+  display: block;
+  perspective: 700px;
+  transform: translateY(1px);
+}
+
+.sidebar-stack-icon::before,
+.sidebar-stack-icon::after,
+.sidebar-stack-icon span {
+  position: absolute;
+  display: block;
+  width: 22px;
+  height: 16px;
+  border-radius: 4px;
+  transform-style: preserve-3d;
+  box-shadow:
+    0 2px 0 rgba(255,255,255,.12),
+    0 5px 10px rgba(0,0,0,.24);
+}
+
+.sidebar-stack-icon::before,
+.sidebar-stack-icon::after {
+  content: "";
+}
+
+.sidebar-stack-icon::before {
+  left: 2px;
+  top: 8px;
+  background: linear-gradient(160deg, #ffffff 0%, #e7eef6 100%);
+  border: 1px solid rgba(255,255,255,.72);
+  transform: rotate(-13deg) translateZ(-8px);
+}
+
+.sidebar-stack-icon span {
+  left: 6px;
+  top: 5px;
+  background: linear-gradient(160deg, #fdfefe 0%, #dce7f2 100%);
+  border: 1px solid rgba(255,255,255,.78);
+  transform: rotate(-3deg) translateZ(-3px);
+}
+
+.sidebar-stack-icon::after {
+  left: 10px;
+  top: 2px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0)),
+    linear-gradient(145deg, #65c8f1 0%, #2d79c1 100%);
+  border: 1px solid rgba(255,255,255,.18);
+  transform: rotate(7deg) translateZ(6px);
+  box-shadow:
+    0 2px 0 rgba(255,255,255,.1),
+    0 8px 14px rgba(0,0,0,.28);
+}
+
+/* subtle white lines on the front/top card */
+.sidebar-stack-icon {
+  --deck-line-1: rgba(255,255,255,.88);
+  --deck-line-2: rgba(255,255,255,.7);
+}
+.sidebar-stack-icon::after {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0)),
+    linear-gradient(145deg, #65c8f1 0%, #2d79c1 100%);
+}
+.sidebar-stack-icon::after {
+  -webkit-mask-image: none;
+}
+.sidebar-stack-icon::before,
+.sidebar-stack-icon span {
+  overflow: hidden;
+}
+
+/* Class header icon */
+.class-icon {
+  width: 104px;
+  height: 92px;
+  position: relative;
+  perspective: 1000px;
+  transform: translateY(2px);
+}
+
+.class-icon span {
+  position: absolute;
+  display: block;
+  width: 68px;
+  height: 92px;
+  border-radius: 12px;
+  transform-style: preserve-3d;
+  box-shadow:
+    0 2px 0 rgba(255,255,255,.18),
+    0 16px 24px rgba(28, 50, 73, .14);
+}
+
+.class-icon span:nth-child(1) {
+  left: 2px;
+  top: 8px;
+  background: linear-gradient(160deg, #ffffff 0%, #e7eef6 100%);
+  border: 1px solid rgba(82, 108, 132, .18);
+  transform: rotate(-15deg) translateZ(-12px);
+}
+
+.class-icon span:nth-child(2) {
+  left: 18px;
+  top: 4px;
+  background: linear-gradient(160deg, #fbfdff 0%, #dde7f1 100%);
+  border: 1px solid rgba(82, 108, 132, .2);
+  transform: rotate(-5deg) translateZ(-4px);
+}
+
+.class-icon span:nth-child(3) {
+  left: 34px;
+  top: 0;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0)),
+    linear-gradient(145deg, #68c9f2 0%, #2f85c9 100%);
+  border: 1px solid rgba(35, 65, 92, .12);
+  transform: rotate(7deg) translateZ(8px);
+  box-shadow:
+    0 3px 0 rgba(255,255,255,.12),
+    0 18px 28px rgba(28, 50, 73, .18);
+}
+
+/* decorative flashcard lines on the top/front card */
+.class-icon span:nth-child(3)::before,
+.class-icon span:nth-child(3)::after {
+  content: "";
+  position: absolute;
+  left: 13px;
+  right: 13px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.84);
+}
+
+.class-icon span:nth-child(3)::before {
+  top: 18px;
+}
+
+.class-icon span:nth-child(3)::after {
+  top: 30px;
+  right: 24px;
+}
+
+/* make sidebar items align nicely with the new icon shape */
+.sidebar-class-item {
+  align-items: center;
+}
+
+/* slightly brighten the icon in dark mode */
+body.dark .class-icon span:nth-child(1),
+body.dark .class-icon span:nth-child(2) {
+  background: linear-gradient(160deg, #f5f9fd 0%, #cfd9e3 100%);
+}
+
+body.dark .class-icon span:nth-child(3),
+body.dark .sidebar-stack-icon::after {
+  box-shadow:
+    0 2px 0 rgba(255,255,255,.08),
+    0 12px 18px rgba(0,0,0,.35);
+}
