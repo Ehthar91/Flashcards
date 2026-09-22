@@ -14,6 +14,7 @@ const {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  reauthenticateWithPopup,
   signOut,
   onAuthStateChanged
 } = authModule;
@@ -54,9 +55,12 @@ const state = {
   pendingStudy: null,
   pendingQuiz: null,
   quizConfig: {
+    questionStyle: "standard",
+    template: "What is the answer for {term}?",
     direction: "frontBack",
     answerMode: "multiple",
-    order: "progressive"
+    order: "progressive",
+    points: 1
   },
   quizQuestions: [],
   quizIndex: 0,
@@ -1165,9 +1169,12 @@ function chooseQuizSetup(scope, deckId = null) {
 
   state.pendingQuiz = { scope, deckId };
   state.quizConfig = {
+    questionStyle: "standard",
+    template: "What is the answer for {term}?",
     direction: "frontBack",
     answerMode: "multiple",
-    order: "progressive"
+    order: "progressive",
+    points: 1
   };
 
   document.getElementById("quizSetupTarget").textContent =
@@ -1181,6 +1188,13 @@ function chooseQuizSetup(scope, deckId = null) {
       btn.classList.toggle("active", btn.dataset.value === state.quizConfig[setting]);
     });
   });
+
+  document.getElementById("quizTemplateInput").value = state.quizConfig.template;
+  document.getElementById("quizTemplateField").classList.add("hidden");
+  document.getElementById("quizPointsInput").value = state.quizConfig.points;
+  document.getElementById("exportGoogleFormsBtn").classList.toggle("hidden", !isOwner());
+  document.getElementById("googleFormsExportResult").classList.add("hidden");
+  document.getElementById("googleFormsExportStatus").textContent = "";
 
   openModal("quizSetupModal");
 }
@@ -1257,8 +1271,12 @@ function buildQuizQuestions(scope, deckId, config) {
       ? (Math.random() < 0.5 ? "frontBack" : "backFront")
       : config.direction;
 
-    const prompt = direction === "frontBack" ? card.front : card.back;
+    const term = direction === "frontBack" ? card.front : card.back;
     const answer = direction === "frontBack" ? card.back : card.front;
+
+    const prompt = config.questionStyle === "custom"
+      ? String(config.template || "").replaceAll("{term}", term)
+      : term;
 
     let requestedType = config.answerMode;
     if (requestedType === "mixed") {
@@ -1287,9 +1305,36 @@ function buildQuizQuestions(scope, deckId, config) {
   });
 }
 
+function syncQuizSetupInputs() {
+  state.quizConfig.template = document.getElementById("quizTemplateInput").value.trim();
+  state.quizConfig.points = Math.max(
+    0,
+    Math.min(100, Number(document.getElementById("quizPointsInput").value || 1))
+  );
+}
+
+function validateQuizSetup() {
+  syncQuizSetupInputs();
+
+  if (state.quizConfig.questionStyle === "custom") {
+    if (!state.quizConfig.template) {
+      showMessage("Enter a custom question template.", "error");
+      return false;
+    }
+
+    if (!state.quizConfig.template.includes("{term}")) {
+      showMessage('Custom questions must include {term}.', "error");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function startConfiguredQuiz() {
   const pending = state.pendingQuiz;
   if (!pending) return;
+  if (!validateQuizSetup()) return;
 
   const questions = buildQuizQuestions(
     pending.scope,
@@ -1319,6 +1364,223 @@ function startConfiguredQuiz() {
   closeModals();
   showPanel("quizView");
   renderQuizQuestion();
+}
+
+async function googleFormsRequest(path, accessToken, options = {}) {
+  const response = await fetch(`https://forms.googleapis.com/v1${path}`, {
+    ...options,
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+
+  const bodyText = await response.text();
+  let data = {};
+
+  if (bodyText) {
+    try {
+      data = JSON.parse(bodyText);
+    } catch {
+      data = { raw: bodyText };
+    }
+  }
+
+  if (!response.ok) {
+    const apiMessage =
+      data?.error?.message ||
+      data?.raw ||
+      `Google Forms API error (${response.status})`;
+
+    const err = new Error(apiMessage);
+    err.httpStatus = response.status;
+    err.apiData = data;
+    throw err;
+  }
+
+  return data;
+}
+
+function googleFormQuestionItem(question, points, index) {
+  const grading = {
+    pointValue: points,
+    correctAnswers: {
+      answers: [{ value: question.answer }]
+    }
+  };
+
+  let questionKind;
+
+  if (question.type === "multiple" && Array.isArray(question.options)) {
+    grading.whenRight = { text: "Correct." };
+    grading.whenWrong = { text: `Correct answer: ${question.answer}` };
+
+    questionKind = {
+      choiceQuestion: {
+        type: "RADIO",
+        options: question.options.map(value => ({ value })),
+        shuffle: false
+      }
+    };
+  } else {
+    grading.generalFeedback = {
+      text: `Correct answer: ${question.answer}`
+    };
+
+    questionKind = {
+      textQuestion: {
+        paragraph: false
+      }
+    };
+  }
+
+  return {
+    createItem: {
+      item: {
+        title: question.prompt,
+        description: question.deckName ? `Deck: ${question.deckName}` : "",
+        questionItem: {
+          question: {
+            required: true,
+            grading,
+            ...questionKind
+          }
+        }
+      },
+      location: { index }
+    }
+  };
+}
+
+async function getGoogleFormsAccessToken() {
+  const provider = new GoogleAuthProvider();
+  provider.addScope("https://www.googleapis.com/auth/forms.body");
+
+  if (state.user?.email) {
+    provider.setCustomParameters({
+      login_hint: state.user.email
+    });
+  }
+
+  const result = await reauthenticateWithPopup(state.user, provider);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  const accessToken = credential?.accessToken;
+
+  if (!accessToken) {
+    throw new Error("Google did not return a Forms authorization token.");
+  }
+
+  return accessToken;
+}
+
+async function exportQuizToGoogleForms() {
+  if (!isOwner()) {
+    showMessage("Only the class owner can export this quiz.", "error");
+    return;
+  }
+
+  if (!state.pendingQuiz) return;
+  if (!validateQuizSetup()) return;
+
+  const status = document.getElementById("googleFormsExportStatus");
+  const exportBtn = document.getElementById("exportGoogleFormsBtn");
+  const resultBox = document.getElementById("googleFormsExportResult");
+
+  resultBox.classList.add("hidden");
+  status.textContent = "Connecting to Google Forms…";
+  exportBtn.disabled = true;
+
+  try {
+    const questions = buildQuizQuestions(
+      state.pendingQuiz.scope,
+      state.pendingQuiz.deckId,
+      state.quizConfig
+    );
+
+    if (!questions.length) {
+      throw new Error("There are no flashcards available to export.");
+    }
+
+    const accessToken = await getGoogleFormsAccessToken();
+
+    status.textContent = "Creating Google Form Quiz…";
+
+    const targetTitle =
+      state.pendingQuiz.scope === "deck"
+        ? `${state.decks.find(d => d.id === state.pendingQuiz.deckId)?.name || "Flashcards"} Quiz`
+        : `${state.selectedClass.name} Quiz`;
+
+    const created = await googleFormsRequest("/forms", accessToken, {
+      method: "POST",
+      body: JSON.stringify({
+        info: {
+          title: targetTitle
+        }
+      })
+    });
+
+    if (!created.formId) {
+      throw new Error("Google Forms did not return a form ID.");
+    }
+
+    const requests = [
+      {
+        updateSettings: {
+          settings: {
+            quizSettings: {
+              isQuiz: true
+            }
+          },
+          updateMask: "quizSettings.isQuiz"
+        }
+      },
+      {
+        updateFormInfo: {
+          info: {
+            description:
+              `Created from Flashcards — ${state.selectedClass.name}. ` +
+              `${questions.length} question${questions.length === 1 ? "" : "s"}, ` +
+              `${state.quizConfig.points} point${state.quizConfig.points === 1 ? "" : "s"} each.`
+          },
+          updateMask: "description"
+        }
+      },
+      ...questions.map((q, index) =>
+        googleFormQuestionItem(q, state.quizConfig.points, index)
+      )
+    ];
+
+    await googleFormsRequest(`/forms/${encodeURIComponent(created.formId)}:batchUpdate`, accessToken, {
+      method: "POST",
+      body: JSON.stringify({ requests })
+    });
+
+    const editUrl = `https://docs.google.com/forms/d/${created.formId}/edit`;
+    const link = document.getElementById("googleFormsEditLink");
+    link.href = editUrl;
+
+    resultBox.classList.remove("hidden");
+    status.textContent = `Exported ${questions.length} questions successfully.`;
+    showMessage("Google Form Quiz created.", "success");
+  } catch (err) {
+    console.error(err);
+
+    if (
+      err?.httpStatus === 403 ||
+      /access not configured|api has not been used|permission|insufficient authentication|scope/i.test(err?.message || "")
+    ) {
+      status.textContent =
+        "Google Forms export needs the Google Forms API enabled for this Firebase/Google Cloud project.";
+    } else if (err?.code === "auth/popup-blocked") {
+      status.textContent =
+        "Your browser blocked the Google permission window. Allow popups and try again.";
+    } else {
+      status.textContent = `Export failed: ${err?.message || "Unknown error"}`;
+    }
+  } finally {
+    exportBtn.disabled = false;
+  }
 }
 
 function renderQuizQuestion() {
@@ -1803,6 +2065,15 @@ document.addEventListener("click", async e => {
       btn.classList.toggle("active", btn === quizSettingBtn);
     });
 
+    if (setting === "questionStyle") {
+      const custom = quizSettingBtn.dataset.value === "custom";
+      document.getElementById("quizTemplateField").classList.toggle("hidden", !custom);
+
+      if (custom) {
+        setTimeout(() => document.getElementById("quizTemplateInput").focus(), 0);
+      }
+    }
+
     return;
   }
 
@@ -1854,6 +2125,14 @@ document.getElementById("deleteDeckBtn").addEventListener("click", deleteCurrent
 document.getElementById("studyClassBtn").addEventListener("click", () => chooseStudyOrder("class"));
 document.getElementById("quizClassBtn").addEventListener("click", () => chooseQuizSetup("class"));
 document.getElementById("startQuizBtn").addEventListener("click", startConfiguredQuiz);
+document.getElementById("exportGoogleFormsBtn").addEventListener("click", exportQuizToGoogleForms);
+document.getElementById("quizTemplateInput").addEventListener("input", e => {
+  state.quizConfig.template = e.target.value;
+});
+document.getElementById("quizPointsInput").addEventListener("input", e => {
+  const value = Math.max(0, Math.min(100, Number(e.target.value || 1)));
+  state.quizConfig.points = value;
+});
 document.getElementById("quizCheckBtn").addEventListener("click", () => {
   answerQuizQuestion(document.getElementById("quizTypingInput").value);
 });

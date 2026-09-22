@@ -2290,3 +2290,146 @@ body.dark .quiz-perfect {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   CUSTOM QUIZ QUESTIONS + GOOGLE FORMS EXPORT
+   ========================================================= */
+
+.quiz-wording-segmented {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.quiz-template-field {
+  margin-top: 11px;
+  padding: 13px;
+  border: 1px solid var(--app-line, var(--line));
+  border-radius: 12px;
+  background: var(--app-bg, var(--bg));
+}
+
+.quiz-template-field label {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  color: var(--ink, var(--text));
+  font-size: .84rem;
+  font-weight: 800;
+}
+
+.quiz-template-field input {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid var(--app-line, var(--line));
+  border-radius: 9px;
+  background: var(--card-bg, var(--panel));
+  color: var(--ink, var(--text));
+}
+
+.quiz-template-field small {
+  display: block;
+  margin-top: 7px;
+  color: var(--ink-soft, var(--muted));
+  line-height: 1.4;
+}
+
+.quiz-export-row {
+  margin: 16px 0 13px;
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 11px;
+  align-items: end;
+}
+
+.quiz-points-field {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink, var(--text));
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.quiz-points-field input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--app-line, var(--line));
+  border-radius: 9px;
+  background: var(--app-bg, var(--bg));
+  color: var(--ink, var(--text));
+}
+
+.google-forms-btn {
+  min-height: 43px;
+  border: 1px solid #d6e4ea;
+  border-radius: 10px;
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: var(--card-bg, var(--panel));
+  color: var(--ink, var(--text));
+  font-weight: 850;
+  box-shadow: 0 5px 14px rgba(24, 50, 74, .06);
+}
+
+.google-forms-btn:hover:not(:disabled) {
+  border-color: #46a56f;
+  transform: translateY(-1px);
+}
+
+.google-forms-icon {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #45a66f;
+  color: white;
+  font-size: .82rem;
+  font-weight: 900;
+}
+
+.google-forms-status {
+  min-height: 20px;
+  margin: 2px 0 11px;
+  color: var(--ink-soft, var(--muted));
+  font-size: .8rem;
+  line-height: 1.4;
+}
+
+.google-forms-result {
+  margin: 7px 0 11px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: #edf9f2;
+  color: #246b44;
+}
+
+.google-forms-result strong,
+.google-forms-result a {
+  display: block;
+}
+
+.google-forms-result a {
+  margin-top: 4px;
+  color: #1d6f44;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+body.dark .google-forms-result {
+  background: #19392a;
+  color: #a4e5bd;
+}
+
+body.dark .google-forms-result a {
+  color: #a4e5bd;
+}
+
+@media (max-width: 620px) {
+  .quiz-export-row {
+    grid-template-columns: 1fr;
+  }
+}

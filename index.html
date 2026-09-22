@@ -487,6 +487,24 @@
       <p id="quizSetupTarget" class="study-order-target"></p>
 
       <div class="quiz-setup-section">
+        <strong>Question wording</strong>
+        <div class="quiz-segmented quiz-wording-segmented" data-quiz-setting="questionStyle">
+          <button class="quiz-setting-btn active" data-value="standard">Standard</button>
+          <button class="quiz-setting-btn" data-value="custom">Custom Question</button>
+        </div>
+
+        <div id="quizTemplateField" class="quiz-template-field hidden">
+          <label>
+            Question template
+            <input id="quizTemplateInput" type="text"
+              value="What is the answer for {term}?"
+              placeholder="Write a question using {term}" />
+          </label>
+          <small>Use <strong>{term}</strong> where the flashcard term should appear.</small>
+        </div>
+      </div>
+
+      <div class="quiz-setup-section">
         <strong>Question direction</strong>
         <div class="quiz-segmented" data-quiz-setting="direction">
           <button class="quiz-setting-btn active" data-value="frontBack">Front → Back</button>
@@ -515,6 +533,25 @@
       <div class="quiz-setup-note">
         Multiple-choice questions use other flashcards as answer choices. If there are not enough unique choices, that question automatically becomes Type Answer.
       </div>
+
+      <div class="quiz-export-row">
+        <label class="quiz-points-field">
+          Points each
+          <input id="quizPointsInput" type="number" min="0" max="100" step="1" value="1" />
+        </label>
+
+        <button id="exportGoogleFormsBtn" class="google-forms-btn hidden" type="button">
+          <span class="google-forms-icon">G</span>
+          Export to Google Forms Quiz
+        </button>
+      </div>
+
+      <div id="googleFormsExportResult" class="google-forms-result hidden">
+        <strong>Google Form created.</strong>
+        <a id="googleFormsEditLink" target="_blank" rel="noopener">Open Google Form Quiz ↗</a>
+      </div>
+
+      <p id="googleFormsExportStatus" class="google-forms-status" aria-live="polite"></p>
 
       <div class="modal-actions">
         <button id="startQuizBtn" class="primary-btn">Start Quiz</button>

@@ -58,3 +58,34 @@ Each deck now has its own `published` visibility flag.
 - Owners see both visible and hidden decks.
 
 The class owner can use **Show / Hide** directly from the Decks tab or change **Visible to students** while editing a deck.
+
+
+## Custom quiz question templates
+
+Quiz Setup now includes **Question wording → Custom Question**.
+
+Example:
+
+`What is the answer for {term}?`
+
+`{term}` is replaced by the flashcard prompt term after applying the selected direction:
+
+- Front → Back: `{term}` = card front; correct answer = card back.
+- Back → Front: `{term}` = card back; correct answer = card front.
+- Mixed: the direction is selected per question.
+
+Custom templates must contain `{term}`.
+
+## Google Forms Quiz export
+
+Class owners now see **Export to Google Forms Quiz** in Quiz Setup.
+
+The app:
+1. Requests Google Forms permission only when the owner clicks Export.
+2. Creates a new Google Form.
+3. Converts it to a quiz.
+4. Adds the generated questions.
+5. Adds the correct answer key and point value.
+6. Returns an **Open Google Form Quiz** link.
+
+One-time Google Cloud setup is described in `GOOGLE_FORMS_SETUP.md`.
