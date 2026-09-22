@@ -1682,3 +1682,52 @@ body.dark .new-deck-link {
     min-height: 190px;
   }
 }
+
+
+/* =========================================================
+   COLOR-CODED RATING BUTTONS
+   1 = hard / again ... 5 = easy
+   ========================================================= */
+
+.confidence-buttons button {
+  border: 1px solid transparent;
+  color: white;
+  box-shadow: 0 6px 12px rgba(24, 50, 74, .10);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+
+.confidence-buttons button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 10px 18px rgba(24, 50, 74, .16);
+  color: white;
+}
+
+.confidence-buttons button:active {
+  transform: translateY(0);
+}
+
+.confidence-buttons button[data-rating="1"] {
+  background: linear-gradient(135deg, #db5b63, #b93e47);
+}
+
+.confidence-buttons button[data-rating="2"] {
+  background: linear-gradient(135deg, #f2a24c, #d7821f);
+}
+
+.confidence-buttons button[data-rating="3"] {
+  background: linear-gradient(135deg, #f0ca55, #d5a51b);
+  color: #3e3213;
+}
+
+.confidence-buttons button[data-rating="4"] {
+  background: linear-gradient(135deg, #7dca7a, #53aa68);
+}
+
+.confidence-buttons button[data-rating="5"] {
+  background: linear-gradient(135deg, #33b27f, #168c68);
+}
+
+body.dark .confidence-buttons button[data-rating="3"] {
+  color: #2d2410;
+}
