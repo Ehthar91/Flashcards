@@ -7,82 +7,106 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function ownsDeck(deckId) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/decks/$(deckId))
-        && get(/databases/$(database)/documents/decks/$(deckId)).data.ownerId == request.auth.uid;
+    function classExists(classId) {
+      return exists(/databases/$(database)/documents/classes/$(classId));
     }
 
-    function publishedDeck(deckId) {
-      return exists(/databases/$(database)/documents/decks/$(deckId))
-        && get(/databases/$(database)/documents/decks/$(deckId)).data.published == true;
+    function ownsClass(classId) {
+      return signedIn()
+        && classExists(classId)
+        && get(/databases/$(database)/documents/classes/$(classId)).data.ownerId == request.auth.uid;
+    }
+
+    function publishedClass(classId) {
+      return classExists(classId)
+        && get(/databases/$(database)/documents/classes/$(classId)).data.published == true;
+    }
+
+    function followsClass(classId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid)/library/$(classId));
     }
 
     match /users/{uid} {
       allow read, create, update: if signedIn() && request.auth.uid == uid;
       allow delete: if false;
 
-      match /library/{deckId} {
+      match /library/{classId} {
         allow read: if signedIn() && request.auth.uid == uid;
 
         allow create: if signedIn()
           && request.auth.uid == uid
-          && request.resource.data.deckId == deckId
+          && request.resource.data.classId == classId
           && request.resource.data.access == "study"
-          && publishedDeck(deckId);
+          && publishedClass(classId);
 
         allow update: if signedIn()
           && request.auth.uid == uid
-          && resource.data.deckId == deckId
-          && request.resource.data.deckId == deckId
+          && resource.data.classId == classId
+          && request.resource.data.classId == classId
           && request.resource.data.access == "study";
 
         allow delete: if signedIn() && request.auth.uid == uid;
       }
     }
 
-    match /decks/{deckId} {
-      // Anyone with the exact link can open a published deck.
+    match /classes/{classId} {
+      // Published classes can be opened from their exact share link.
+      // Owners can always access their own class.
       allow get: if resource.data.published == true
         || (signedIn() && resource.data.ownerId == request.auth.uid);
 
-      // Listing is only useful for the owner's query:
-      // where("ownerId", "==", request.auth.uid)
-      allow list: if signedIn() && resource.data.ownerId == request.auth.uid;
+      // Used by the owner's "My Classes" query.
+      allow list: if signedIn()
+        && resource.data.ownerId == request.auth.uid;
 
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid;
 
       allow update, delete: if signedIn()
         && resource.data.ownerId == request.auth.uid;
+
+      match /decks/{deckId} {
+        // Owners can read/edit all decks.
+        // Followers can read decks while the parent class remains published.
+        allow get, list: if ownsClass(classId)
+          || (publishedClass(classId) && followsClass(classId));
+
+        allow create, update, delete: if ownsClass(classId);
+      }
     }
 
     match /progress/{progressId} {
       allow get: if signedIn() && (
         resource.data.studentId == request.auth.uid
-        || ownsDeck(resource.data.deckId)
+        || ownsClass(resource.data.classId)
       );
 
-      // Students may query only their own progress.
-      // Deck owners may query progress for decks they own.
+      // Student query must constrain studentId to request.auth.uid.
+      // Owner learner query must constrain classId to a class they own.
       allow list: if signedIn() && (
         resource.data.studentId == request.auth.uid
-        || ownsDeck(resource.data.deckId)
+        || ownsClass(resource.data.classId)
       );
 
       allow create: if signedIn()
         && request.resource.data.studentId == request.auth.uid
         && (
-          publishedDeck(request.resource.data.deckId)
-          || ownsDeck(request.resource.data.deckId)
+          ownsClass(request.resource.data.classId)
+          || (
+            publishedClass(request.resource.data.classId)
+            && followsClass(request.resource.data.classId)
+          )
         );
 
       allow update: if signedIn()
         && resource.data.studentId == request.auth.uid
         && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.classId == resource.data.classId
         && request.resource.data.deckId == resource.data.deckId;
 
-      allow delete: if false;
+      allow delete: if signedIn()
+        && resource.data.studentId == request.auth.uid;
     }
   }
 }

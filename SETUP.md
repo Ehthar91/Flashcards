@@ -1,46 +1,41 @@
-# Flashcards — Linked Library Model
+# Flashcards — Class + Deck Architecture
 
-This version matches the behavior you described:
+This build uses the Brainscape-style hierarchy:
 
-- There is only one account type.
-- Any signed-in user can create their own decks.
-- The deck creator is the owner.
-- The owner can edit, publish, share, view progress, or delete the deck.
-- A student opens a study link and the deck is automatically added to **Shared With Me**.
-- The student receives **study** access only.
-- The student does not receive a copied deck.
-- The library stores only a reference to the owner's deck.
-- When the owner edits the master deck, students see the updated version the next time the deck is loaded.
+- One account type
+- My Flashcards
+- Classes
+- Multiple decks inside each class
+- One share link per class
+- Shared classes are linked, not copied
+- Shared users have study-only access
+- Owner changes automatically appear for followers
 
-## Firestore collections
+## Firestore structure
 
 - `users/{uid}`
-- `users/{uid}/library/{deckId}` — linked study-only deck references
-- `decks/{deckId}` — one canonical/master deck
-- `progress/{deckId}_{studentId}` — per-student study progress
+- `users/{uid}/library/{classId}`
+- `classes/{classId}`
+- `classes/{classId}/decks/{deckId}`
+- `progress/{classId}_{deckId}_{studentId}`
 
-No `admins`, `classes`, or `classCodes` collection is required.
+## Important
 
-## Important setup step
+Replace your current Firestore Rules with the included `firestore.rules` and click Publish.
 
-Replace your current Firestore Rules with the contents of `firestore.rules`, then click **Publish**.
+## Sharing
 
-## Shared-link flow
+The owner clicks SHARE on the class.
 
-Teacher/owner:
+The link looks like:
 
-1. Create a deck.
-2. Click **Copy Study Link**.
-3. Paste the link into Google Classroom.
+`https://YOUR-GITHUB-PAGES/Flashcards/?class=FIREBASE_CLASS_ID`
 
-Student:
+A signed-in student who opens it gets the class added to My Flashcards with study-only access.
 
-1. Click the link.
-2. Sign in with Google if needed.
-3. Flashcards automatically adds the deck to **Shared With Me** with study-only access.
-4. The student can study but cannot edit the deck.
+The student's library stores a reference to the class, not copies of the decks. If the owner adds, removes, renames, or edits a deck, the student sees the new version next time the class loads.
 
-## GitHub files
+## GitHub
 
 Upload these files together in the repository root:
 

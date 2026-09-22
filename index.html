@@ -3,337 +3,400 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#4f66f2" />
+  <meta name="theme-color" content="#314f73" />
   <title>Flashcards</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <button id="brandBtn" class="brand-button" aria-label="Flashcards home">
-      <div class="brand-mark">F</div>
-      <div class="brand-copy">
-        <h1>Flashcards</h1>
-        <p>Study smarter. Remember longer.</p>
-      </div>
-    </button>
+  <div id="globalMessage" class="global-message hidden" role="status"></div>
 
-    <div class="topbar-actions">
-      <div id="userChip" class="user-chip hidden">
-        <img id="userPhoto" alt="" />
+  <section id="loginView" class="view auth-view">
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <div class="logo-mark">F</div>
         <div>
-          <strong id="userName"></strong>
-          <span>Flashcards account</span>
+          <h1>Flashcards</h1>
+          <p>Study smarter. Remember longer.</p>
         </div>
       </div>
-      <button id="themeBtn" class="icon-btn" aria-label="Toggle theme">◐</button>
-      <button id="signOutBtn" class="ghost-btn hidden">Sign out</button>
-    </div>
-  </header>
 
-  <main class="app-shell">
-    <div id="globalMessage" class="global-message hidden" role="status"></div>
-
-    <section id="setupView" class="view">
-      <article class="card center-card">
-        <span class="eyebrow">Firebase setup</span>
-        <h2>Flashcards needs Firebase.</h2>
-        <p>Check the Firebase configuration and Firestore Rules.</p>
-      </article>
-    </section>
-
-    <section id="loginView" class="view">
-      <div class="login-grid">
-        <article class="card hero-card">
-          <span class="eyebrow">Your flashcard library</span>
-          <h2>Create, share, and study from one account.</h2>
-          <p>
-            Create your own decks or open a study link someone shared with you.
-            Shared decks stay connected to the original, so updates appear automatically.
-          </p>
-          <button id="googleSignInBtn" class="primary-btn google-btn">
-            <span class="google-g">G</span>
-            Continue with Google
-          </button>
-        </article>
-
-        <div class="feature-stack">
-          <article class="card feature-row">
-            <span class="feature-icon">🔗</span>
-            <div><strong>Linked decks</strong><span>Shared decks stay connected to the owner's master deck.</span></div>
-          </article>
-          <article class="card feature-row">
-            <span class="feature-icon">🔒</span>
-            <div><strong>Study-only access</strong><span>Students cannot change decks shared in study mode.</span></div>
-          </article>
-          <article class="card feature-row">
-            <span class="feature-icon">↻</span>
-            <div><strong>Automatic updates</strong><span>When the owner edits a deck, everyone sees the latest version.</span></div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section id="sharedSignInView" class="view">
-      <article class="card shared-signin-card">
-        <span class="eyebrow">Shared deck</span>
-        <h2 id="sharedSignInTitle">A deck was shared with you.</h2>
+      <article class="auth-card">
+        <span class="eyebrow">My Flashcards</span>
+        <h2>Create classes with multiple decks.</h2>
         <p>
-          Sign in with Google to add this deck to <strong>My Flashcards</strong>.
-          You will have study access only.
+          Share one class link. Students save the class to their account with study-only access,
+          and any deck changes you make appear automatically.
         </p>
-        <button id="sharedGoogleSignInBtn" class="primary-btn google-btn">
+        <button id="googleSignInBtn" class="primary-btn google-btn">
           <span class="google-g">G</span>
-          Sign in and add deck
+          Continue with Google
         </button>
       </article>
-    </section>
+    </div>
+  </section>
 
-    <section id="libraryView" class="view">
-      <div class="dashboard-head">
+  <section id="sharedSignInView" class="view auth-view">
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <div class="logo-mark">F</div>
         <div>
+          <h1>Flashcards</h1>
+          <p>Shared class</p>
+        </div>
+      </div>
+
+      <article class="auth-card">
+        <span class="eyebrow">Class invitation</span>
+        <h2 id="sharedClassSignInTitle">A class was shared with you.</h2>
+        <p>Sign in to add this class to <strong>My Flashcards</strong> with study-only access.</p>
+        <button id="sharedGoogleSignInBtn" class="primary-btn google-btn">
+          <span class="google-g">G</span>
+          Sign in and add class
+        </button>
+      </article>
+    </div>
+  </section>
+
+  <section id="appView" class="view app-view">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="sidebar-profile">
+          <img id="sidebarPhoto" alt="" />
+          <div>
+            <span>Hi,</span>
+            <strong id="sidebarName">User</strong>
+          </div>
+          <button id="sidebarSettingsBtn" class="sidebar-icon-btn" title="Theme">◐</button>
+        </div>
+
+        <div class="sidebar-stats">
+          <div>
+            <span>Classes</span>
+            <strong id="sidebarClassCount">0</strong>
+          </div>
+          <div>
+            <span>Cards Studied</span>
+            <strong id="sidebarStudied">0</strong>
+          </div>
+          <div>
+            <span>Mastery</span>
+            <strong id="sidebarMastery">0%</strong>
+          </div>
+        </div>
+
+        <div class="sidebar-title-row">
+          <h3>My Flashcards</h3>
+          <button id="newClassSidebarBtn" class="sidebar-add-btn" title="Create class">+</button>
+        </div>
+      </div>
+
+      <nav id="classSidebarList" class="class-sidebar-list"></nav>
+
+      <div class="sidebar-bottom">
+        <button id="signOutBtn" class="sidebar-signout">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <section id="libraryView" class="panel-view">
+        <div class="welcome-panel">
           <span class="eyebrow">My Flashcards</span>
-          <h2>Your Library</h2>
-          <p>Owned decks can be edited. Shared decks stay linked to their owner.</p>
-        </div>
-        <button id="newDeckToggleBtn" class="primary-btn">+ Create Deck</button>
-      </div>
-
-      <article id="newDeckPanel" class="card form-card hidden">
-        <div class="card-title-row">
-          <div>
-            <span class="eyebrow">New deck</span>
-            <h3>Create flashcards</h3>
-          </div>
-          <button id="closeNewDeckBtn" class="icon-btn">×</button>
+          <h1>Your classes</h1>
+          <p>Create a class for a subject or course, then add as many decks as you need.</p>
+          <button id="newClassMainBtn" class="primary-btn">+ Create New Class</button>
         </div>
 
-        <label>
-          Deck name
-          <input id="newDeckName" type="text" maxlength="100" placeholder="Bedroom Items" />
-        </label>
-
-        <label>
-          Cards
-          <textarea id="newDeckCards" rows="10" placeholder="Bed = လီၢ်မံ&#10;Blanket = ယၢ်လုး&#10;Pillow = ခိၣ်သခၢၣ်"></textarea>
-        </label>
-
-        <div class="checkbox-row">
-          <input id="newDeckPublished" type="checkbox" checked />
-          <label for="newDeckPublished">Enable study link</label>
-        </div>
-
-        <div class="inline-actions">
-          <button id="createDeckBtn" class="primary-btn">Create Deck</button>
-          <button id="loadSampleBtn" class="secondary-btn">Load Sample</button>
-        </div>
-
-        <p class="hint">Use <strong>=</strong>, a tab, or a comma between the front and back.</p>
-      </article>
-
-      <div class="library-section">
-        <div class="section-title-row">
-          <div>
-            <span class="eyebrow">Created by you</span>
-            <h3>My Decks</h3>
-          </div>
-          <span id="ownedCount" class="badge">0</span>
-        </div>
-        <div id="ownedDeckGrid" class="deck-grid"></div>
-      </div>
-
-      <div class="library-section">
-        <div class="section-title-row">
-          <div>
-            <span class="eyebrow">Study access</span>
-            <h3>Shared With Me</h3>
-          </div>
-          <span id="sharedCount" class="badge">0</span>
-        </div>
-        <div id="sharedDeckGrid" class="deck-grid"></div>
-      </div>
-    </section>
-
-    <section id="editDeckView" class="view">
-      <div class="section-head">
-        <div>
-          <button id="backFromEditBtn" class="back-link">← My Flashcards</button>
-          <span class="eyebrow">Owner controls</span>
-          <h2>Edit Deck</h2>
-        </div>
-      </div>
-
-      <article class="card form-card">
-        <label>
-          Deck name
-          <input id="editDeckName" type="text" maxlength="100" />
-        </label>
-
-        <label>
-          Cards
-          <textarea id="editDeckCards" rows="14"></textarea>
-        </label>
-
-        <div class="checkbox-row">
-          <input id="editDeckPublished" type="checkbox" />
-          <label for="editDeckPublished">Enable study link</label>
-        </div>
-
-        <div class="inline-actions">
-          <button id="saveDeckBtn" class="primary-btn">Save Changes</button>
-          <button id="cancelEditBtn" class="secondary-btn">Cancel</button>
-        </div>
-
-        <p class="hint">
-          Saving changes updates the same master deck. Everyone who saved this deck will see the new version.
-        </p>
-      </article>
-    </section>
-
-    <section id="deckLandingView" class="view">
-      <article class="card deck-landing">
-        <div class="deck-landing-main">
-          <span id="landingAccessLabel" class="eyebrow">Study deck</span>
-          <h2 id="landingDeckTitle"></h2>
-          <p id="landingDeckMeta"></p>
-
-          <div id="linkedNotice" class="linked-notice hidden">
-            <strong>Linked to the owner's deck</strong>
-            <span>You have study access. Any changes made by the owner will appear here automatically.</span>
-          </div>
-
-          <div class="inline-actions">
-            <button id="startDeckBtn" class="primary-btn">Start Studying</button>
-            <button id="landingEditBtn" class="secondary-btn hidden">Edit Deck</button>
-            <button id="landingShareBtn" class="secondary-btn hidden">Copy Study Link</button>
-          </div>
-        </div>
-
-        <div class="landing-stats">
-          <div><span>Cards</span><strong id="landingCardCount">0</strong></div>
-          <div><span>Mastery</span><strong id="landingMastery">0%</strong></div>
-          <div><span>Studied</span><strong id="landingStudied">0</strong></div>
-        </div>
-      </article>
-    </section>
-
-    <section id="progressView" class="view">
-      <div class="section-head">
-        <div>
-          <button id="backFromProgressBtn" class="back-link">← My Flashcards</button>
-          <span class="eyebrow">Owner controls</span>
-          <h2 id="progressDeckTitle">Progress</h2>
-        </div>
-        <button id="refreshProgressBtn" class="secondary-btn">Refresh</button>
-      </div>
-
-      <article class="card table-card">
-        <div class="card-title-row">
-          <div>
-            <span class="eyebrow">Study activity</span>
-            <h3>Student Progress</h3>
-          </div>
-          <span id="progressCount" class="badge">0 students</span>
-        </div>
-        <div id="progressTable"></div>
-      </article>
-    </section>
-
-    <section id="studySetupView" class="view">
-      <div class="section-head">
-        <div>
-          <button id="backToDeckBtn" class="back-link">← Deck</button>
-          <span class="eyebrow">Study</span>
-          <h2 id="setupDeckTitle"></h2>
-        </div>
-      </div>
-
-      <article class="card study-setup-card">
-        <h3>Choose a study mode</h3>
-        <div class="mode-grid">
-          <button class="mode-btn" data-mode="standard">
-            <strong>Flashcard</strong>
-            <span>Front → Back</span>
-          </button>
-          <button class="mode-btn" data-mode="reverse">
-            <strong>Reverse</strong>
-            <span>Back → Front</span>
-          </button>
-          <button class="mode-btn" data-mode="typing">
-            <strong>Typing</strong>
-            <span>Type the answer</span>
-          </button>
-        </div>
-      </article>
-    </section>
-
-    <section id="studyView" class="view">
-      <div class="section-head compact">
-        <div>
-          <span id="studyModeLabel" class="eyebrow">Flashcard</span>
-          <h2 id="studyDeckTitle"></h2>
-        </div>
-        <button id="exitStudyBtn" class="ghost-btn">Exit</button>
-      </div>
-
-      <div class="study-layout">
-        <div class="study-topline">
-          <span id="cardCounter"></span>
-          <div class="progress-bar"><span id="sessionProgress"></span></div>
-        </div>
-
-        <article class="card flashcard">
-          <div class="card-side-label">Question</div>
-          <div id="questionText" class="card-text"></div>
-
-          <div id="typingArea" class="typing-area hidden">
-            <input id="typingInput" type="text" autocomplete="off" placeholder="Type your answer" />
-            <button id="checkTypingBtn" class="primary-btn">Check Answer</button>
-            <p id="typingResult" class="typing-result"></p>
-          </div>
-
-          <button id="revealBtn" class="primary-btn">Show Answer</button>
-
-          <div id="answerArea" class="answer-area hidden">
-            <div class="divider"></div>
-            <div class="card-side-label">Answer</div>
-            <div id="answerText" class="card-text answer-text"></div>
-
-            <div class="rating-area">
-              <p>How well did you know it?</p>
-              <div class="rating-buttons">
-                <button data-rating="1">1</button>
-                <button data-rating="2">2</button>
-                <button data-rating="3">3</button>
-                <button data-rating="4">4</button>
-                <button data-rating="5">5</button>
+        <div class="library-columns">
+          <section>
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Created by you</span>
+                <h2>My Classes</h2>
               </div>
-              <div class="rating-labels"><span>Again</span><span>Easy</span></div>
+              <span id="ownedClassCount" class="count-badge">0</span>
+            </div>
+            <div id="ownedClassCards" class="class-card-grid"></div>
+          </section>
+
+          <section>
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Study access</span>
+                <h2>Shared With Me</h2>
+              </div>
+              <span id="sharedClassCount" class="count-badge">0</span>
+            </div>
+            <div id="sharedClassCards" class="class-card-grid"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="classView" class="panel-view hidden">
+        <header class="class-header">
+          <div class="class-icon">
+            <span></span><span></span><span></span>
+          </div>
+
+          <div class="class-head-content">
+            <div class="class-title-line">
+              <h1 id="classTitle">Class</h1>
+              <button id="editClassBtn" class="pencil-btn hidden" title="Edit class">✎</button>
+            </div>
+
+            <div class="class-meta">
+              <span>By: <strong id="classOwnerName">Owner</strong></span>
+              <span>Cards Studied: <strong id="classCardsStudied">0 of 0</strong></span>
+              <span>Decks: <strong id="classDeckCount">0</strong></span>
+            </div>
+
+            <div class="class-actions">
+              <button id="studyClassBtn" class="study-main-btn">
+                STUDY <span>▶</span>
+              </button>
+              <button id="shareClassBtn" class="share-btn hidden">⌯ SHARE</button>
+              <button id="removeSharedClassBtn" class="quiet-btn hidden">Remove from My Flashcards</button>
             </div>
           </div>
+
+          <div class="mastery-ring-wrap">
+            <div id="masteryRing" class="mastery-ring" style="--mastery:0">
+              <div>
+                <span>Mastery</span>
+                <strong id="classMastery">0%</strong>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="tabs">
+          <button class="tab-btn" data-tab="intro">Intro</button>
+          <button class="tab-btn active" data-tab="decks">Decks <span id="tabDeckCount">(0)</span></button>
+          <button class="tab-btn" data-tab="learners">Learners <span id="tabLearnerCount">(0)</span></button>
+        </div>
+
+        <section id="introTab" class="tab-panel hidden">
+          <article class="intro-card">
+            <span class="eyebrow">About this class</span>
+            <h2 id="introClassTitle"></h2>
+            <p id="introText">No introduction has been added yet.</p>
+            <button id="editIntroBtn" class="secondary-btn hidden">Edit Intro</button>
+          </article>
+        </section>
+
+        <section id="decksTab" class="tab-panel">
+          <div class="deck-toolbar">
+            <div class="toolbar-left">
+              <span class="check-circle">✓</span>
+              <strong>All</strong>
+            </div>
+            <div id="ownerDeckTools" class="toolbar-right hidden">
+              <button id="newDeckBtn" class="new-deck-link">＋ Create New Deck</button>
+            </div>
+          </div>
+
+          <div id="deckRows" class="deck-rows"></div>
+        </section>
+
+        <section id="learnersTab" class="tab-panel hidden">
+          <div class="learners-toolbar">
+            <div>
+              <span class="eyebrow">Class activity</span>
+              <h2>Learners</h2>
+            </div>
+            <button id="refreshLearnersBtn" class="secondary-btn hidden">Refresh</button>
+          </div>
+
+          <div id="learnersContent"></div>
+        </section>
+      </section>
+
+      <section id="studyView" class="panel-view hidden">
+        <div class="study-shell">
+          <div class="study-top">
+            <button id="exitStudyBtn" class="back-btn">← Back</button>
+            <div>
+              <span id="studyDeckLabel" class="eyebrow">Study</span>
+              <h2 id="studyTitle">Deck</h2>
+            </div>
+            <div class="study-counter">
+              <span id="cardCounter">1 of 10</span>
+            </div>
+          </div>
+
+          <div class="study-progress">
+            <span id="studyProgressFill"></span>
+          </div>
+
+          <article class="study-card">
+            <div class="side-label">Question</div>
+            <div id="questionText" class="study-card-text"></div>
+
+            <div id="typingArea" class="typing-area hidden">
+              <input id="typingInput" type="text" autocomplete="off" placeholder="Type your answer" />
+              <button id="checkTypingBtn" class="primary-btn">Check Answer</button>
+              <p id="typingResult" class="typing-result"></p>
+            </div>
+
+            <button id="revealBtn" class="study-reveal-btn">Show Answer</button>
+
+            <div id="answerArea" class="answer-area hidden">
+              <div class="study-divider"></div>
+              <div class="side-label">Answer</div>
+              <div id="answerText" class="study-card-text answer-text"></div>
+
+              <div class="confidence-area">
+                <p>How well did you know it?</p>
+                <div class="confidence-buttons">
+                  <button data-rating="1">1</button>
+                  <button data-rating="2">2</button>
+                  <button data-rating="3">3</button>
+                  <button data-rating="4">4</button>
+                  <button data-rating="5">5</button>
+                </div>
+                <div class="confidence-labels">
+                  <span>Again</span><span>Easy</span>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="completeView" class="panel-view hidden">
+        <article class="complete-card">
+          <div class="complete-check">✓</div>
+          <span class="eyebrow">Session complete</span>
+          <h1>Nice work!</h1>
+          <p id="completeText"></p>
+          <div class="complete-stats">
+            <div><span>Cards</span><strong id="completeCards">0</strong></div>
+            <div><span>Average</span><strong id="completeAverage">0.0</strong></div>
+            <div><span>Mastery</span><strong id="completeMastery">0%</strong></div>
+          </div>
+          <div class="complete-actions">
+            <button id="studyAgainBtn" class="primary-btn">Study Again</button>
+            <button id="completeBackBtn" class="secondary-btn">Back to Class</button>
+          </div>
         </article>
+      </section>
+    </main>
+  </section>
+
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div id="newClassModal" class="modal hidden">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow">New class</span>
+          <h2>Create a class</h2>
+        </div>
+        <button class="modal-close" data-close-modal>×</button>
       </div>
-    </section>
 
-    <section id="completeView" class="view">
-      <article class="card completion-card">
-        <div class="completion-icon">✓</div>
-        <span class="eyebrow">Session complete</span>
-        <h2>Nice work!</h2>
-        <p id="completionText"></p>
+      <label>
+        Class name
+        <input id="newClassName" type="text" maxlength="120" placeholder="Grade 8 Karen Language" />
+      </label>
 
-        <div class="stats-grid">
-          <div><span>Cards</span><strong id="completeCards">0</strong></div>
-          <div><span>Average</span><strong id="completeAverage">0.0</strong></div>
-          <div><span>Mastery</span><strong id="completeMastery">0%</strong></div>
+      <label>
+        Intro / description
+        <textarea id="newClassIntro" rows="4" placeholder="Vocabulary, reading, spelling, and review decks for Grade 8."></textarea>
+      </label>
+
+      <div class="checkbox-row">
+        <input id="newClassPublished" type="checkbox" checked />
+        <label for="newClassPublished">Enable class sharing</label>
+      </div>
+
+      <div class="modal-actions">
+        <button id="createClassBtn" class="primary-btn">Create Class</button>
+        <button class="secondary-btn" data-close-modal>Cancel</button>
+      </div>
+    </div>
+
+    <div id="editClassModal" class="modal hidden">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow">Owner controls</span>
+          <h2>Edit class</h2>
         </div>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
 
-        <div class="inline-actions centered">
-          <button id="studyAgainBtn" class="primary-btn">Study Again</button>
-          <button id="completeBackBtn" class="secondary-btn">Back to Deck</button>
+      <label>
+        Class name
+        <input id="editClassName" type="text" maxlength="120" />
+      </label>
+
+      <label>
+        Intro / description
+        <textarea id="editClassIntro" rows="5"></textarea>
+      </label>
+
+      <div class="checkbox-row">
+        <input id="editClassPublished" type="checkbox" />
+        <label for="editClassPublished">Enable class sharing</label>
+      </div>
+
+      <div class="modal-actions">
+        <button id="saveClassBtn" class="primary-btn">Save Changes</button>
+        <button class="secondary-btn" data-close-modal>Cancel</button>
+      </div>
+    </div>
+
+    <div id="newDeckModal" class="modal hidden">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow">New deck</span>
+          <h2>Create flashcards</h2>
         </div>
-      </article>
-    </section>
-  </main>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+
+      <label>
+        Deck name
+        <input id="newDeckName" type="text" maxlength="120" placeholder="Bedroom Items" />
+      </label>
+
+      <label>
+        Cards
+        <textarea id="newDeckCards" rows="11" placeholder="Bed = လီၢ်မံ&#10;Blanket = ယၢ်လုး&#10;Pillow = ခိၣ်သခၢၣ်"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button id="createDeckBtn" class="primary-btn">Create Deck</button>
+        <button id="loadSampleBtn" class="secondary-btn">Load Sample</button>
+        <button class="secondary-btn" data-close-modal>Cancel</button>
+      </div>
+
+      <p class="modal-hint">Use <strong>=</strong>, a tab, or a comma between the front and back.</p>
+    </div>
+
+    <div id="editDeckModal" class="modal hidden">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow">Owner controls</span>
+          <h2>Edit deck</h2>
+        </div>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+
+      <label>
+        Deck name
+        <input id="editDeckName" type="text" maxlength="120" />
+      </label>
+
+      <label>
+        Cards
+        <textarea id="editDeckCards" rows="13"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button id="saveDeckBtn" class="primary-btn">Save Changes</button>
+        <button id="deleteDeckBtn" class="danger-btn">Delete Deck</button>
+        <button class="secondary-btn" data-close-modal>Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>
