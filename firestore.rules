@@ -67,10 +67,22 @@ service cloud.firestore {
         && resource.data.ownerId == request.auth.uid;
 
       match /decks/{deckId} {
-        // Owners can read/edit all decks.
-        // Followers can read decks while the parent class remains published.
-        allow get, list: if ownsClass(classId)
-          || (publishedClass(classId) && followsClass(classId));
+        // Owners can read every deck, including hidden drafts.
+        // Followers can read only decks marked published/visible.
+        allow get: if ownsClass(classId)
+          || (
+            publishedClass(classId)
+            && followsClass(classId)
+            && resource.data.published == true
+          );
+
+        // Student queries must include where("published", "==", true).
+        allow list: if ownsClass(classId)
+          || (
+            publishedClass(classId)
+            && followsClass(classId)
+            && resource.data.published == true
+          );
 
         allow create, update, delete: if ownsClass(classId);
       }

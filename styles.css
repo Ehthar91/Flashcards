@@ -652,3 +652,54 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   .study-main-btn { width: 100%; min-width: 0; }
   .complete-stats { grid-template-columns: 1fr; }
 }
+
+.deck-visibility-note {
+  margin: -4px 0 18px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: .79rem;
+  line-height: 1.45;
+}
+
+.deck-status-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: .66rem;
+  font-weight: 850;
+  letter-spacing: .04em;
+  vertical-align: middle;
+}
+
+.deck-status-badge.visible {
+  background: #e5f7ef;
+  color: #267452;
+}
+
+.deck-status-badge.hidden {
+  background: #fff1dd;
+  color: #99631e;
+}
+
+body.dark .deck-status-badge.visible {
+  background: #1f4a3b;
+  color: #9de0c2;
+}
+
+body.dark .deck-status-badge.hidden {
+  background: #4a3920;
+  color: #ffd797;
+}
+
+.deck-action-btn.visibility-toggle {
+  width: auto;
+  min-width: 34px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 800;
+}

@@ -362,6 +362,15 @@
         <textarea id="newDeckCards" rows="11" placeholder="Bed = လီၢ်မံ&#10;Blanket = ယၢ်လုး&#10;Pillow = ခိၣ်သခၢၣ်"></textarea>
       </label>
 
+      <div class="checkbox-row">
+        <input id="newDeckPublished" type="checkbox" checked />
+        <label for="newDeckPublished">Visible to students</label>
+      </div>
+
+      <div class="deck-visibility-note">
+        Turn this off to prepare the deck privately. Students following the class will not see it until you make it visible.
+      </div>
+
       <div class="modal-actions">
         <button id="createDeckBtn" class="primary-btn">Create Deck</button>
         <button id="loadSampleBtn" class="secondary-btn">Load Sample</button>
@@ -389,6 +398,15 @@
         Cards
         <textarea id="editDeckCards" rows="13"></textarea>
       </label>
+
+      <div class="checkbox-row">
+        <input id="editDeckPublished" type="checkbox" />
+        <label for="editDeckPublished">Visible to students</label>
+      </div>
+
+      <div class="deck-visibility-note">
+        Hidden decks stay in your class but are not shown to students.
+      </div>
 
       <div class="modal-actions">
         <button id="saveDeckBtn" class="primary-btn">Save Changes</button>

@@ -45,3 +45,16 @@ Upload these files together in the repository root:
 - `firebase-config.js`
 
 `firestore.rules` and `SETUP.md` can stay in the repository for reference.
+
+
+## Deck visibility / drafts
+
+Each deck now has its own `published` visibility flag.
+
+- `published: true` = visible to students following the class.
+- `published: false` = hidden draft; only the class owner can see it.
+- The class itself can remain shared while you prepare future decks privately.
+- Students query only visible decks.
+- Owners see both visible and hidden decks.
+
+The class owner can use **Show / Hide** directly from the Decks tab or change **Visible to students** while editing a deck.

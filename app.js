@@ -521,7 +521,16 @@ async function openClass(classId) {
 }
 
 async function loadDecks() {
-  const snap = await getDocs(collection(state.db, "classes", state.selectedClass.id, "decks"));
+  const decksRef = collection(state.db, "classes", state.selectedClass.id, "decks");
+
+  // Owners see every deck, including hidden drafts.
+  // Students query only decks that are explicitly visible.
+  const source = isOwner()
+    ? decksRef
+    : query(decksRef, where("published", "==", true));
+
+  const snap = await getDocs(source);
+
   state.decks = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => {
@@ -609,7 +618,14 @@ function renderDeckRows() {
         </div>
 
         <div class="deck-main">
-          <h3>${escapeHtml(deck.name)}</h3>
+          <h3>
+            ${escapeHtml(deck.name)}
+            ${owner ? `
+              <span class="deck-status-badge ${deck.published === false ? "hidden" : "visible"}">
+                ${deck.published === false ? "Hidden" : "Visible"}
+              </span>
+            ` : ""}
+          </h3>
           <div class="deck-progress-copy">
             <span>${s.unique} of ${total} unique cards studied</span>
           </div>
@@ -621,6 +637,13 @@ function renderDeckRows() {
         <div class="deck-actions-row">
           ${owner ? `
             <div class="deck-owner-tools">
+              <button
+                class="deck-action-btn visibility-toggle"
+                data-toggle-deck-visibility="${deck.id}"
+                title="${deck.published === false ? "Make visible to students" : "Hide from students"}"
+              >
+                ${deck.published === false ? "Show" : "Hide"}
+              </button>
               <button class="deck-action-btn" data-edit-deck="${deck.id}" title="Edit deck">✎</button>
             </div>
           ` : ""}
@@ -722,6 +745,7 @@ function openNewDeck() {
   if (!isOwner()) return;
   document.getElementById("newDeckName").value = "";
   document.getElementById("newDeckCards").value = "";
+  document.getElementById("newDeckPublished").checked = true;
   openModal("newDeckModal");
 }
 
@@ -730,6 +754,7 @@ async function createDeck() {
 
   const name = document.getElementById("newDeckName").value.trim();
   const cards = parsePairs(document.getElementById("newDeckCards").value);
+  const published = document.getElementById("newDeckPublished").checked;
 
   if (!name) {
     showMessage("Enter a deck name.", "error");
@@ -745,6 +770,7 @@ async function createDeck() {
     await addDoc(collection(state.db, "classes", state.selectedClass.id, "decks"), {
       name,
       cards,
+      published,
       order: state.decks.length,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -752,7 +778,12 @@ async function createDeck() {
 
     closeModals();
     await openClass(state.selectedClass.id);
-    showMessage("Deck created. Everyone following this class will see it automatically.", "success");
+    showMessage(
+      published
+        ? "Deck created and visible to students."
+        : "Deck created as hidden. Students will not see it yet.",
+      "success"
+    );
   } catch (err) {
     handleFirebaseError(err, "Could not create the deck.");
   }
@@ -767,6 +798,7 @@ function openEditDeck(deckId) {
   state.editingDeckId = deckId;
   document.getElementById("editDeckName").value = deck.name;
   document.getElementById("editDeckCards").value = cardsToText(deck.cards);
+  document.getElementById("editDeckPublished").checked = deck.published !== false;
   openModal("editDeckModal");
 }
 
@@ -775,6 +807,7 @@ async function saveDeckChanges() {
 
   const name = document.getElementById("editDeckName").value.trim();
   const cards = parsePairs(document.getElementById("editDeckCards").value);
+  const published = document.getElementById("editDeckPublished").checked;
 
   if (!name) {
     showMessage("Enter a deck name.", "error");
@@ -792,6 +825,7 @@ async function saveDeckChanges() {
       {
         name,
         cards,
+        published,
         updatedAt: serverTimestamp()
       }
     );
@@ -801,6 +835,36 @@ async function saveDeckChanges() {
     showMessage("Deck updated for everyone following this class.", "success");
   } catch (err) {
     handleFirebaseError(err, "Could not update the deck.");
+  }
+}
+
+async function toggleDeckVisibility(deckId) {
+  if (!isOwner()) return;
+
+  const deck = state.decks.find(d => d.id === deckId);
+  if (!deck) return;
+
+  const nextPublished = deck.published === false;
+
+  try {
+    await updateDoc(
+      doc(state.db, "classes", state.selectedClass.id, "decks", deckId),
+      {
+        published: nextPublished,
+        updatedAt: serverTimestamp()
+      }
+    );
+
+    await openClass(state.selectedClass.id);
+
+    showMessage(
+      nextPublished
+        ? `"${deck.name}" is now visible to students.`
+        : `"${deck.name}" is hidden from students.`,
+      "success"
+    );
+  } catch (err) {
+    handleFirebaseError(err, "Could not change deck visibility.");
   }
 }
 
@@ -1196,6 +1260,11 @@ document.addEventListener("click", async e => {
   const editDeck = e.target.closest("[data-edit-deck]");
   if (editDeck) {
     return openEditDeck(editDeck.dataset.editDeck);
+  }
+
+  const toggleDeckVisibilityBtn = e.target.closest("[data-toggle-deck-visibility]");
+  if (toggleDeckVisibilityBtn) {
+    return toggleDeckVisibility(toggleDeckVisibilityBtn.dataset.toggleDeckVisibility);
   }
 
   const studyDeck = e.target.closest("[data-study-deck]");
