@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flashcards</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">F</div>
+      <div>
+        <h1>Flashcards</h1>
+        <p>Study smarter. Remember longer.</p>
+      </div>
+    </div>
+    <button id="themeBtn" class="ghost-btn" aria-label="Toggle theme">◐</button>
+  </header>
+
+  <main class="app-shell">
+    <section id="homeView" class="view active">
+      <div class="hero card">
+        <div>
+          <span class="eyebrow">Standalone Preview</span>
+          <h2>Build decks. Study. Track mastery.</h2>
+          <p>Create a deck by pasting vocabulary pairs, then study with flashcards, reverse cards, or typing practice.</p>
+        </div>
+        <div class="hero-actions">
+          <button class="primary-btn" data-nav="teacherView">Teacher</button>
+          <button class="secondary-btn" data-nav="studentView">Student</button>
+        </div>
+      </div>
+
+      <div class="feature-grid">
+        <article class="card mini-card">
+          <span class="feature-icon">✚</span>
+          <h3>Fast deck creation</h3>
+          <p>Paste one pair per line using =, tab, or comma.</p>
+        </article>
+        <article class="card mini-card">
+          <span class="feature-icon">↔</span>
+          <h3>Three study modes</h3>
+          <p>Standard, reverse, and typing practice.</p>
+        </article>
+        <article class="card mini-card">
+          <span class="feature-icon">★</span>
+          <h3>Confidence rating</h3>
+          <p>Rate each card from 1–5 to build mastery.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="teacherView" class="view">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Teacher</span>
+          <h2>Deck Manager</h2>
+        </div>
+        <button class="ghost-btn" data-nav="homeView">← Home</button>
+      </div>
+
+      <div class="teacher-grid">
+        <article class="card">
+          <h3>Create a deck</h3>
+          <label>
+            Deck name
+            <input id="deckName" type="text" placeholder="Bedroom Items" />
+          </label>
+
+          <label>
+            Vocabulary
+            <textarea id="deckInput" rows="10" placeholder="Bed = လီၢ်မံ&#10;Blanket = ယၢ်လုး&#10;Pillow = ခိၣ်သခၢၣ်"></textarea>
+          </label>
+
+          <div class="inline-actions">
+            <button id="createDeckBtn" class="primary-btn">Create Deck</button>
+            <button id="loadSampleBtn" class="secondary-btn">Load Sample</button>
+          </div>
+          <p class="hint">Accepted separators: <strong>=</strong>, tab, or comma.</p>
+          <p id="teacherMessage" class="status-message" aria-live="polite"></p>
+        </article>
+
+        <article class="card">
+          <div class="card-heading-row">
+            <h3>Your decks</h3>
+            <button id="clearAllBtn" class="danger-link">Clear all</button>
+          </div>
+          <div id="teacherDeckList" class="deck-list"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="studentView" class="view">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Student</span>
+          <h2>Choose a deck</h2>
+        </div>
+        <button class="ghost-btn" data-nav="homeView">← Home</button>
+      </div>
+
+      <div class="card">
+        <div id="studentDeckList" class="deck-grid"></div>
+      </div>
+    </section>
+
+    <section id="studySetupView" class="view">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Study</span>
+          <h2 id="setupDeckTitle">Deck</h2>
+        </div>
+        <button class="ghost-btn" data-nav="studentView">← Decks</button>
+      </div>
+
+      <div class="card setup-card">
+        <h3>Choose a mode</h3>
+        <div class="mode-grid">
+          <button class="mode-btn" data-mode="standard">
+            <strong>Flashcard</strong>
+            <span>Front → Back</span>
+          </button>
+          <button class="mode-btn" data-mode="reverse">
+            <strong>Reverse</strong>
+            <span>Back → Front</span>
+          </button>
+          <button class="mode-btn" data-mode="typing">
+            <strong>Typing</strong>
+            <span>Type the answer</span>
+          </button>
+        </div>
+
+        <div class="progress-summary">
+          <div>
+            <span class="stat-label">Cards</span>
+            <strong id="setupCardCount">0</strong>
+          </div>
+          <div>
+            <span class="stat-label">Mastery</span>
+            <strong id="setupMastery">0%</strong>
+          </div>
+          <div>
+            <span class="stat-label">Studied</span>
+            <strong id="setupStudied">0</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="studyView" class="view">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow" id="studyModeLabel">Flashcard</span>
+          <h2 id="studyDeckTitle">Deck</h2>
+        </div>
+        <button id="exitStudyBtn" class="ghost-btn">Exit</button>
+      </div>
+
+      <div class="study-layout">
+        <div class="study-topline">
+          <span id="cardCounter">Card 1 of 1</span>
+          <div class="progress-bar"><span id="sessionProgress"></span></div>
+        </div>
+
+        <article class="flashcard card">
+          <div id="questionLabel" class="card-side-label">Question</div>
+          <div id="questionText" class="card-text">...</div>
+
+          <div id="typingArea" class="typing-area hidden">
+            <input id="typingInput" type="text" autocomplete="off" placeholder="Type your answer" />
+            <button id="checkTypingBtn" class="primary-btn">Check Answer</button>
+            <p id="typingResult" class="typing-result"></p>
+          </div>
+
+          <button id="revealBtn" class="primary-btn">Show Answer</button>
+
+          <div id="answerArea" class="answer-area hidden">
+            <div class="divider"></div>
+            <div class="card-side-label">Answer</div>
+            <div id="answerText" class="card-text answer-text">...</div>
+
+            <div id="ratingArea" class="rating-area">
+              <p>How well did you know it?</p>
+              <div class="rating-buttons">
+                <button data-rating="1">1</button>
+                <button data-rating="2">2</button>
+                <button data-rating="3">3</button>
+                <button data-rating="4">4</button>
+                <button data-rating="5">5</button>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="completeView" class="view">
+      <div class="card completion-card">
+        <div class="completion-icon">✓</div>
+        <span class="eyebrow">Session complete</span>
+        <h2>Nice work!</h2>
+        <p id="completionText">You reviewed your deck.</p>
+        <div class="completion-stats">
+          <div><span>Cards</span><strong id="completeCards">0</strong></div>
+          <div><span>Average</span><strong id="completeAverage">0.0</strong></div>
+          <div><span>Mastery</span><strong id="completeMastery">0%</strong></div>
+        </div>
+        <div class="inline-actions centered">
+          <button id="studyAgainBtn" class="primary-btn">Study Again</button>
+          <button class="secondary-btn" data-nav="studentView">Back to Decks</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
