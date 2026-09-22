@@ -49,7 +49,9 @@ const state = {
   studyScope: "deck",
   sessionCards: [],
   sessionIndex: 0,
-  sessionRatings: []
+  sessionRatings: [],
+  studyOrder: "progressive",
+  pendingStudy: null
 };
 
 const sampleDeck = {
@@ -128,6 +130,17 @@ function cardsToText(cards = []) {
 
 function normalizeText(value) {
   return String(value || "").normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function shuffledCopy(items) {
+  const copy = [...items];
+
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+
+  return copy;
 }
 
 function classParam() {
@@ -1022,24 +1035,68 @@ async function loadLearners() {
   }
 }
 
-function startDeckStudy(deckId) {
+function chooseStudyOrder(scope, deckId = null) {
+  let targetName = state.selectedClass?.name || "Class";
+
+  if (scope === "deck") {
+    const deck = state.decks.find(d => d.id === deckId);
+    if (!deck?.cards?.length) return;
+    targetName = deck.name;
+  } else if (!state.decks.some(deck => deck.cards?.length)) {
+    return;
+  }
+
+  state.pendingStudy = { scope, deckId };
+  document.getElementById("studyOrderTarget").textContent =
+    scope === "deck"
+      ? `Study deck: ${targetName}`
+      : `Study class: ${targetName}`;
+
+  openModal("studyOrderModal");
+}
+
+function beginPendingStudy(order) {
+  const pending = state.pendingStudy;
+  if (!pending) return;
+
+  state.studyOrder = order;
+  closeModals();
+
+  if (pending.scope === "deck") {
+    startDeckStudy(pending.deckId, order);
+  } else {
+    startClassStudy(order);
+  }
+
+  state.pendingStudy = null;
+}
+
+function startDeckStudy(deckId, order = state.studyOrder) {
   const deck = state.decks.find(d => d.id === deckId);
   if (!deck?.cards?.length) return;
 
   state.studyScope = "deck";
   state.selectedDeck = deck;
   state.studyMode = "standard";
+  state.studyOrder = order;
 
-  state.sessionCards = deck.cards.map(card => ({
+  const cards = deck.cards.map(card => ({
     ...card,
     deckId: deck.id,
     deckName: deck.name
   }));
 
-  prepareSession(deck.name, "Deck Study");
+  state.sessionCards = order === "random"
+    ? shuffledCopy(cards)
+    : cards;
+
+  prepareSession(
+    deck.name,
+    order === "random" ? "Deck Study · Random" : "Deck Study · Progressive"
+  );
 }
 
-function startClassStudy() {
+function startClassStudy(order = state.studyOrder) {
   const cards = [];
 
   for (const deck of state.decks) {
@@ -1057,16 +1114,16 @@ function startClassStudy() {
   state.studyScope = "class";
   state.selectedDeck = null;
   state.studyMode = "standard";
+  state.studyOrder = order;
 
-  // Prioritize cards with lower confidence.
-  state.sessionCards = cards.map(card => {
-    const p = state.progressMap.get(card.deckId);
-    const cp = p?.cards?.[card.id];
-    const score = cp?.count ? cp.total / cp.count : 0;
-    return { ...card, score, jitter: Math.random() * .2 };
-  }).sort((a, b) => (a.score + a.jitter) - (b.score + b.jitter));
+  state.sessionCards = order === "random"
+    ? shuffledCopy(cards)
+    : cards;
 
-  prepareSession(state.selectedClass.name, "Class Study");
+  prepareSession(
+    state.selectedClass.name,
+    order === "random" ? "Class Study · Random" : "Class Study · Progressive"
+  );
 }
 
 function prepareSession(title, label) {
@@ -1295,7 +1352,7 @@ document.addEventListener("click", async e => {
 
   const studyDeck = e.target.closest("[data-study-deck]");
   if (studyDeck) {
-    return startDeckStudy(studyDeck.dataset.studyDeck);
+    return chooseStudyOrder("deck", studyDeck.dataset.studyDeck);
   }
 
   const rating = e.target.closest("[data-rating]");
@@ -1338,7 +1395,7 @@ document.getElementById("loadSampleBtn").addEventListener("click", () => {
 document.getElementById("saveDeckBtn").addEventListener("click", saveDeckChanges);
 document.getElementById("deleteDeckBtn").addEventListener("click", deleteCurrentDeck);
 
-document.getElementById("studyClassBtn").addEventListener("click", startClassStudy);
+document.getElementById("studyClassBtn").addEventListener("click", () => chooseStudyOrder("class"));
 document.getElementById("refreshLearnersBtn").addEventListener("click", loadLearners);
 
 document.getElementById("revealBtn").addEventListener("click", e => {
@@ -1348,9 +1405,9 @@ document.getElementById("revealBtn").addEventListener("click", e => {
 document.getElementById("exitStudyBtn").addEventListener("click", returnToClass);
 document.getElementById("studyAgainBtn").addEventListener("click", () => {
   if (state.studyScope === "class") {
-    startClassStudy();
+    startClassStudy(state.studyOrder);
   } else if (state.selectedDeck) {
-    startDeckStudy(state.selectedDeck.id);
+    startDeckStudy(state.selectedDeck.id, state.studyOrder);
   }
 });
 document.getElementById("completeBackBtn").addEventListener("click", returnToClass);
@@ -1413,6 +1470,14 @@ document.addEventListener("keydown", e => {
 
   e.preventDefault();
   rateCurrentCard(Number(e.key));
+});
+
+document.getElementById("progressiveOrderBtn").addEventListener("click", () => {
+  beginPendingStudy("progressive");
+});
+
+document.getElementById("randomOrderBtn").addEventListener("click", () => {
+  beginPendingStudy("random");
 });
 
 document.getElementById("modalBackdrop").addEventListener("click", e => {

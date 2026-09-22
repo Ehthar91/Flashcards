@@ -380,6 +380,32 @@
       <p class="modal-hint">Use <strong>=</strong>, a tab, or a comma between the front and back.</p>
     </div>
 
+    <div id="studyOrderModal" class="modal study-order-modal hidden">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow">Study setup</span>
+          <h2>Choose card order</h2>
+        </div>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+
+      <p id="studyOrderTarget" class="study-order-target"></p>
+
+      <div class="study-order-grid">
+        <button id="progressiveOrderBtn" class="study-order-option">
+          <span class="study-order-icon">1→2→3</span>
+          <strong>Progressive</strong>
+          <small>Study cards in their normal order.</small>
+        </button>
+
+        <button id="randomOrderBtn" class="study-order-option">
+          <span class="study-order-icon">↝</span>
+          <strong>Random</strong>
+          <small>Shuffle the cards into a new order.</small>
+        </button>
+      </div>
+    </div>
+
     <div id="editDeckModal" class="modal hidden">
       <div class="modal-head">
         <div>

@@ -1731,3 +1731,86 @@ body.dark .new-deck-link {
 body.dark .confidence-buttons button[data-rating="3"] {
   color: #2d2410;
 }
+
+
+/* =========================================================
+   STUDY ORDER SELECTOR
+   ========================================================= */
+
+.study-order-modal {
+  width: min(640px, 100%);
+}
+
+.study-order-target {
+  margin: 14px 0 18px;
+  color: var(--ink-soft, var(--muted));
+  font-size: .92rem;
+}
+
+.study-order-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.study-order-option {
+  min-height: 180px;
+  padding: 24px 20px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 9px;
+  border: 1px solid var(--app-line, var(--line));
+  border-radius: 18px;
+  background: var(--card-bg, var(--panel));
+  color: var(--ink, var(--text));
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(24, 50, 74, .06);
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.study-order-option:hover {
+  transform: translateY(-2px);
+  border-color: var(--brand-sky, var(--blue));
+  box-shadow: 0 13px 26px rgba(24, 50, 74, .11);
+}
+
+.study-order-option strong {
+  font-size: 1.06rem;
+}
+
+.study-order-option small {
+  max-width: 210px;
+  color: var(--ink-soft, var(--muted));
+  line-height: 1.45;
+}
+
+.study-order-icon {
+  min-width: 76px;
+  min-height: 50px;
+  padding: 0 13px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--soft-blue, var(--panel-soft));
+  color: var(--brand-sky, var(--blue));
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
+#randomOrderBtn .study-order-icon {
+  background: var(--soft-teal, var(--panel-soft));
+  color: var(--brand-teal, var(--success));
+  font-size: 1.65rem;
+}
+
+@media (max-width: 560px) {
+  .study-order-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .study-order-option {
+    min-height: 145px;
+  }
+}
