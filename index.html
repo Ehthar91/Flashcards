@@ -153,6 +153,9 @@
               <button id="studyClassBtn" class="study-main-btn">
                 STUDY <span>▶</span>
               </button>
+              <button id="quizClassBtn" class="quiz-main-btn">
+                QUIZ <span>?</span>
+              </button>
               <button id="shareClassBtn" class="share-btn hidden">⌯ SHARE</button>
               <button id="removeSharedClassBtn" class="quiet-btn hidden">Remove from My Flashcards</button>
             </div>
@@ -260,6 +263,72 @@
             </div>
           </article>
         </div>
+      </section>
+
+      <section id="quizView" class="panel-view hidden">
+        <div class="quiz-shell">
+          <div class="quiz-top">
+            <button id="exitQuizBtn" class="back-btn">← Back</button>
+            <div>
+              <span id="quizScopeLabel" class="eyebrow">Quiz</span>
+              <h2 id="quizTitle">Quiz</h2>
+            </div>
+            <div class="quiz-score-box">
+              <span>Score</span>
+              <strong id="quizLiveScore">0 / 0</strong>
+            </div>
+          </div>
+
+          <div class="quiz-progress">
+            <span id="quizProgressFill"></span>
+          </div>
+
+          <article class="quiz-card">
+            <div class="quiz-question-head">
+              <span id="quizQuestionCounter" class="quiz-question-number">Question 1 of 10</span>
+              <span id="quizQuestionType" class="quiz-type-badge">Multiple Choice</span>
+            </div>
+
+            <div id="quizQuestionText" class="quiz-question-text"></div>
+
+            <div id="quizChoiceArea" class="quiz-choice-grid"></div>
+
+            <div id="quizTypingArea" class="quiz-typing-area hidden">
+              <input id="quizTypingInput" type="text" autocomplete="off" placeholder="Type your answer" />
+              <button id="quizCheckBtn" class="primary-btn">Check Answer</button>
+            </div>
+
+            <div id="quizFeedback" class="quiz-feedback hidden">
+              <strong id="quizFeedbackTitle"></strong>
+              <span id="quizFeedbackText"></span>
+            </div>
+
+            <div class="quiz-next-row">
+              <button id="quizNextBtn" class="primary-btn hidden">Next Question →</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="quizCompleteView" class="panel-view hidden">
+        <article class="quiz-results-card">
+          <div class="quiz-results-icon">✓</div>
+          <span class="eyebrow">Quiz complete</span>
+          <h1 id="quizResultsTitle">Quiz Results</h1>
+          <p id="quizResultsText"></p>
+
+          <div class="quiz-results-stats">
+            <div><span>Correct</span><strong id="quizCorrectCount">0 / 0</strong></div>
+            <div><span>Score</span><strong id="quizPercent">0%</strong></div>
+          </div>
+
+          <div id="quizReview" class="quiz-review"></div>
+
+          <div class="complete-actions">
+            <button id="quizTryAgainBtn" class="primary-btn">Try Again</button>
+            <button id="quizBackToClassBtn" class="secondary-btn">Back to Class</button>
+          </div>
+        </article>
       </section>
 
       <section id="completeView" class="panel-view hidden">
@@ -403,6 +472,53 @@
           <strong>Random</strong>
           <small>Shuffle the cards into a new order.</small>
         </button>
+      </div>
+    </div>
+
+    <div id="quizSetupModal" class="modal quiz-setup-modal hidden">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow">Quiz setup</span>
+          <h2>Turn flashcards into a quiz</h2>
+        </div>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+
+      <p id="quizSetupTarget" class="study-order-target"></p>
+
+      <div class="quiz-setup-section">
+        <strong>Question direction</strong>
+        <div class="quiz-segmented" data-quiz-setting="direction">
+          <button class="quiz-setting-btn active" data-value="frontBack">Front → Back</button>
+          <button class="quiz-setting-btn" data-value="backFront">Back → Front</button>
+          <button class="quiz-setting-btn" data-value="mixed">Mixed</button>
+        </div>
+      </div>
+
+      <div class="quiz-setup-section">
+        <strong>Answer type</strong>
+        <div class="quiz-segmented" data-quiz-setting="answerMode">
+          <button class="quiz-setting-btn active" data-value="multiple">Multiple Choice</button>
+          <button class="quiz-setting-btn" data-value="typed">Type Answer</button>
+          <button class="quiz-setting-btn" data-value="mixed">Mixed</button>
+        </div>
+      </div>
+
+      <div class="quiz-setup-section">
+        <strong>Question order</strong>
+        <div class="quiz-segmented" data-quiz-setting="order">
+          <button class="quiz-setting-btn active" data-value="progressive">Progressive</button>
+          <button class="quiz-setting-btn" data-value="random">Random</button>
+        </div>
+      </div>
+
+      <div class="quiz-setup-note">
+        Multiple-choice questions use other flashcards as answer choices. If there are not enough unique choices, that question automatically becomes Type Answer.
+      </div>
+
+      <div class="modal-actions">
+        <button id="startQuizBtn" class="primary-btn">Start Quiz</button>
+        <button class="secondary-btn" data-close-modal>Cancel</button>
       </div>
     </div>
 

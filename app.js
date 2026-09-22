@@ -51,7 +51,18 @@ const state = {
   sessionIndex: 0,
   sessionRatings: [],
   studyOrder: "progressive",
-  pendingStudy: null
+  pendingStudy: null,
+  pendingQuiz: null,
+  quizConfig: {
+    direction: "frontBack",
+    answerMode: "multiple",
+    order: "progressive"
+  },
+  quizQuestions: [],
+  quizIndex: 0,
+  quizScore: 0,
+  quizResults: [],
+  quizAnswered: false
 };
 
 const sampleDeck = {
@@ -599,6 +610,7 @@ function renderClass() {
 
   document.getElementById("shareClassBtn").disabled = owner && !state.selectedClass.published;
   document.getElementById("studyClassBtn").disabled = state.decks.length === 0;
+  document.getElementById("quizClassBtn").disabled = state.decks.length === 0;
 
   renderDeckRows();
 
@@ -660,7 +672,10 @@ function renderDeckRows() {
               <button class="deck-action-btn" data-edit-deck="${deck.id}" title="Edit deck">✎</button>
             </div>
           ` : ""}
-          <button class="deck-play" data-study-deck="${deck.id}" title="Study">▶</button>
+          <div class="deck-primary-actions">
+            <button class="deck-quiz" data-quiz-deck="${deck.id}" title="Quiz">Quiz ?</button>
+            <button class="deck-play" data-study-deck="${deck.id}" title="Study">▶</button>
+          </div>
         </div>
       </article>
     `;
@@ -909,12 +924,15 @@ async function loadLearners() {
 
     for (const deck of state.decks) {
       const s = progressStats(state.progressMap.get(deck.id));
+      const rawProgress = state.progressMap.get(deck.id);
       rows.push({
         deck: deck.name,
         studied: s.studied,
         unique: s.unique,
         total: deck.cards?.length || 0,
-        mastery: s.mastery
+        mastery: s.mastery,
+        quizAnswered: Number(rawProgress?.quizAnswered || 0),
+        quizCorrect: Number(rawProgress?.quizCorrect || 0)
       });
     }
 
@@ -925,7 +943,7 @@ async function loadLearners() {
         <div class="table-wrap">
           <table class="data-table">
             <thead>
-              <tr><th>Deck</th><th>Unique Studied</th><th>Total Reviews</th><th>Mastery</th></tr>
+              <tr><th>Deck</th><th>Unique Studied</th><th>Total Reviews</th><th>Mastery</th><th>Quiz</th></tr>
             </thead>
             <tbody>
               ${rows.map(r => `
@@ -934,6 +952,7 @@ async function loadLearners() {
                   <td>${r.unique} of ${r.total}</td>
                   <td>${r.studied}</td>
                   <td>${r.mastery}%</td>
+                  <td>${r.quizAnswered ? `${Math.round((r.quizCorrect / r.quizAnswered) * 100)}% (${r.quizCorrect}/${r.quizAnswered})` : "—"}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -968,6 +987,8 @@ async function loadLearners() {
           studied: 0,
           ratingTotal: 0,
           ratingCount: 0,
+          quizAnswered: 0,
+          quizCorrect: 0,
           uniqueKeys: new Set(),
           updatedAt: p.updatedAt
         });
@@ -977,6 +998,8 @@ async function loadLearners() {
       row.studied += Number(p.studied || 0);
       row.ratingTotal += Number(p.ratingTotal || 0);
       row.ratingCount += Number(p.ratingCount || 0);
+      row.quizAnswered += Number(p.quizAnswered || 0);
+      row.quizCorrect += Number(p.quizCorrect || 0);
 
       Object.keys(p.cards || {}).forEach(cardId => {
         row.uniqueKeys.add(`${p.deckId}:${cardId}`);
@@ -1007,6 +1030,7 @@ async function loadLearners() {
               <th>Unique Cards</th>
               <th>Total Reviews</th>
               <th>Mastery</th>
+              <th>Quiz</th>
               <th>Last Studied</th>
             </tr>
           </thead>
@@ -1022,6 +1046,7 @@ async function loadLearners() {
                   <td>${l.uniqueKeys.size}</td>
                   <td>${l.studied}</td>
                   <td>${mastery}%</td>
+                  <td>${l.quizAnswered ? `${Math.round((l.quizCorrect / l.quizAnswered) * 100)}% (${l.quizCorrect}/${l.quizAnswered})` : "—"}</td>
                   <td>${timestampToText(l.updatedAt)}</td>
                 </tr>
               `;
@@ -1124,6 +1149,413 @@ function startClassStudy(order = state.studyOrder) {
     state.selectedClass.name,
     order === "random" ? "Class Study · Random" : "Class Study · Progressive"
   );
+}
+
+
+function chooseQuizSetup(scope, deckId = null) {
+  let targetName = state.selectedClass?.name || "Class";
+
+  if (scope === "deck") {
+    const deck = state.decks.find(d => d.id === deckId);
+    if (!deck?.cards?.length) return;
+    targetName = deck.name;
+  } else if (!state.decks.some(deck => deck.cards?.length)) {
+    return;
+  }
+
+  state.pendingQuiz = { scope, deckId };
+  state.quizConfig = {
+    direction: "frontBack",
+    answerMode: "multiple",
+    order: "progressive"
+  };
+
+  document.getElementById("quizSetupTarget").textContent =
+    scope === "deck"
+      ? `Quiz deck: ${targetName}`
+      : `Quiz class: ${targetName}`;
+
+  document.querySelectorAll("[data-quiz-setting]").forEach(group => {
+    const setting = group.dataset.quizSetting;
+    group.querySelectorAll(".quiz-setting-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.value === state.quizConfig[setting]);
+    });
+  });
+
+  openModal("quizSetupModal");
+}
+
+function collectQuizCards(scope, deckId = null) {
+  const cards = [];
+
+  if (scope === "deck") {
+    const deck = state.decks.find(d => d.id === deckId);
+    if (!deck) return cards;
+
+    for (const card of deck.cards || []) {
+      cards.push({
+        ...card,
+        deckId: deck.id,
+        deckName: deck.name
+      });
+    }
+
+    return cards;
+  }
+
+  for (const deck of state.decks) {
+    for (const card of deck.cards || []) {
+      cards.push({
+        ...card,
+        deckId: deck.id,
+        deckName: deck.name
+      });
+    }
+  }
+
+  return cards;
+}
+
+function uniqueValues(values) {
+  const seen = new Set();
+  const result = [];
+
+  for (const value of values) {
+    const key = normalizeText(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+
+  return result;
+}
+
+function buildMultipleChoiceOptions(card, direction, allCards) {
+  const correct = direction === "frontBack" ? card.back : card.front;
+  const pool = uniqueValues(
+    allCards
+      .filter(c => c.id !== card.id || c.deckId !== card.deckId)
+      .map(c => direction === "frontBack" ? c.back : c.front)
+      .filter(value => normalizeText(value) !== normalizeText(correct))
+  );
+
+  if (pool.length < 3) return null;
+
+  const distractors = shuffledCopy(pool).slice(0, 3);
+  return shuffledCopy([correct, ...distractors]);
+}
+
+function buildQuizQuestions(scope, deckId, config) {
+  let cards = collectQuizCards(scope, deckId);
+
+  if (config.order === "random") {
+    cards = shuffledCopy(cards);
+  }
+
+  return cards.map((card, index) => {
+    const direction = config.direction === "mixed"
+      ? (Math.random() < 0.5 ? "frontBack" : "backFront")
+      : config.direction;
+
+    const prompt = direction === "frontBack" ? card.front : card.back;
+    const answer = direction === "frontBack" ? card.back : card.front;
+
+    let requestedType = config.answerMode;
+    if (requestedType === "mixed") {
+      requestedType = index % 2 === 0 ? "multiple" : "typed";
+    }
+
+    let options = null;
+    let type = requestedType;
+
+    if (requestedType === "multiple") {
+      options = buildMultipleChoiceOptions(card, direction, cards);
+      if (!options) type = "typed";
+    }
+
+    return {
+      id: `${card.deckId}:${card.id}:${index}`,
+      cardId: card.id,
+      deckId: card.deckId,
+      deckName: card.deckName,
+      prompt,
+      answer,
+      direction,
+      type,
+      options
+    };
+  });
+}
+
+function startConfiguredQuiz() {
+  const pending = state.pendingQuiz;
+  if (!pending) return;
+
+  const questions = buildQuizQuestions(
+    pending.scope,
+    pending.deckId,
+    state.quizConfig
+  );
+
+  if (!questions.length) {
+    showMessage("There are no cards available for this quiz.", "error");
+    return;
+  }
+
+  state.quizQuestions = questions;
+  state.quizIndex = 0;
+  state.quizScore = 0;
+  state.quizResults = [];
+  state.quizAnswered = false;
+
+  const title = pending.scope === "deck"
+    ? state.decks.find(d => d.id === pending.deckId)?.name || "Deck Quiz"
+    : state.selectedClass.name;
+
+  document.getElementById("quizTitle").textContent = title;
+  document.getElementById("quizScopeLabel").textContent =
+    pending.scope === "deck" ? "Deck Quiz" : "Class Quiz";
+
+  closeModals();
+  showPanel("quizView");
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion() {
+  const q = state.quizQuestions[state.quizIndex];
+
+  if (!q) {
+    finishQuiz();
+    return;
+  }
+
+  state.quizAnswered = false;
+
+  document.getElementById("quizQuestionCounter").textContent =
+    `Question ${state.quizIndex + 1} of ${state.quizQuestions.length}`;
+  document.getElementById("quizQuestionType").textContent =
+    q.type === "multiple" ? "Multiple Choice" : "Type Answer";
+  document.getElementById("quizQuestionText").textContent = q.prompt;
+  document.getElementById("quizLiveScore").textContent =
+    `${state.quizScore} / ${state.quizIndex}`;
+  document.getElementById("quizProgressFill").style.width =
+    `${(state.quizIndex / state.quizQuestions.length) * 100}%`;
+
+  const choiceArea = document.getElementById("quizChoiceArea");
+  const typingArea = document.getElementById("quizTypingArea");
+  const typingInput = document.getElementById("quizTypingInput");
+
+  choiceArea.innerHTML = "";
+  choiceArea.classList.toggle("hidden", q.type !== "multiple");
+  typingArea.classList.toggle("hidden", q.type !== "typed");
+
+  document.getElementById("quizFeedback").classList.add("hidden");
+  document.getElementById("quizNextBtn").classList.add("hidden");
+  document.getElementById("quizCheckBtn").disabled = false;
+  typingInput.disabled = false;
+  typingInput.value = "";
+
+  if (q.type === "multiple") {
+    q.options.forEach((option, index) => {
+      const btn = document.createElement("button");
+      btn.className = "quiz-choice-btn";
+      btn.dataset.quizChoice = option;
+      btn.innerHTML = `
+        <span class="quiz-choice-letter">${String.fromCharCode(65 + index)}</span>
+        <span>${escapeHtml(option)}</span>
+      `;
+      choiceArea.appendChild(btn);
+    });
+  } else {
+    setTimeout(() => typingInput.focus(), 0);
+  }
+}
+
+function showQuizFeedback(correct, given, question) {
+  const box = document.getElementById("quizFeedback");
+  const title = document.getElementById("quizFeedbackTitle");
+  const text = document.getElementById("quizFeedbackText");
+
+  box.classList.remove("hidden", "correct", "incorrect");
+  box.classList.add(correct ? "correct" : "incorrect");
+
+  title.textContent = correct ? "Correct!" : "Not quite.";
+  text.textContent = correct
+    ? `Answer: ${question.answer}`
+    : `Correct answer: ${question.answer}`;
+
+  document.getElementById("quizNextBtn").classList.remove("hidden");
+  document.getElementById("quizLiveScore").textContent =
+    `${state.quizScore} / ${state.quizIndex + 1}`;
+}
+
+function answerQuizQuestion(given) {
+  if (state.quizAnswered) return;
+
+  const q = state.quizQuestions[state.quizIndex];
+  if (!q) return;
+
+  const cleanGiven = String(given ?? "").trim();
+  if (!cleanGiven) {
+    showMessage("Choose or type an answer first.", "error");
+    return;
+  }
+
+  state.quizAnswered = true;
+
+  const correct = normalizeText(cleanGiven) === normalizeText(q.answer);
+  if (correct) state.quizScore += 1;
+
+  state.quizResults.push({
+    ...q,
+    given: cleanGiven,
+    correct
+  });
+
+  document.querySelectorAll(".quiz-choice-btn").forEach(btn => {
+    btn.disabled = true;
+    const value = btn.dataset.quizChoice;
+
+    if (normalizeText(value) === normalizeText(q.answer)) {
+      btn.classList.add("correct");
+    } else if (normalizeText(value) === normalizeText(cleanGiven) && !correct) {
+      btn.classList.add("incorrect");
+    }
+  });
+
+  document.getElementById("quizTypingInput").disabled = true;
+  document.getElementById("quizCheckBtn").disabled = true;
+
+  showQuizFeedback(correct, cleanGiven, q);
+}
+
+function nextQuizQuestion() {
+  if (!state.quizAnswered) return;
+  state.quizIndex += 1;
+  renderQuizQuestion();
+}
+
+async function saveQuizProgress() {
+  const grouped = new Map();
+
+  for (const result of state.quizResults) {
+    if (!grouped.has(result.deckId)) {
+      grouped.set(result.deckId, { answered: 0, correct: 0, deckName: result.deckName });
+    }
+
+    const group = grouped.get(result.deckId);
+    group.answered += 1;
+    if (result.correct) group.correct += 1;
+  }
+
+  for (const [deckId, group] of grouped.entries()) {
+    let p = state.progressMap.get(deckId);
+
+    if (!p) {
+      p = {
+        id: progressDocId(state.selectedClass.id, deckId, state.user.uid),
+        classId: state.selectedClass.id,
+        className: state.selectedClass.name,
+        deckId,
+        deckName: group.deckName,
+        studentId: state.user.uid,
+        studentName: state.user.displayName || "",
+        studentEmail: state.user.email || "",
+        studied: 0,
+        ratingCount: 0,
+        ratingTotal: 0,
+        cards: {},
+        quizAnswered: 0,
+        quizCorrect: 0
+      };
+    }
+
+    p.quizAnswered = Number(p.quizAnswered || 0) + group.answered;
+    p.quizCorrect = Number(p.quizCorrect || 0) + group.correct;
+    state.progressMap.set(deckId, p);
+
+    await setDoc(doc(state.db, "progress", p.id), {
+      classId: state.selectedClass.id,
+      className: state.selectedClass.name,
+      deckId,
+      deckName: group.deckName,
+      studentId: state.user.uid,
+      studentName: state.user.displayName || "",
+      studentEmail: state.user.email || "",
+      quizAnswered: p.quizAnswered,
+      quizCorrect: p.quizCorrect,
+      lastQuizPercent: group.answered
+        ? Math.round((group.correct / group.answered) * 100)
+        : 0,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+}
+
+async function finishQuiz() {
+  const total = state.quizQuestions.length;
+  const percent = total ? Math.round((state.quizScore / total) * 100) : 0;
+
+  document.getElementById("quizResultsTitle").textContent =
+    `${state.selectedClass.name} Quiz Results`;
+  document.getElementById("quizResultsText").textContent =
+    `You answered ${state.quizScore} of ${total} questions correctly.`;
+  document.getElementById("quizCorrectCount").textContent =
+    `${state.quizScore} / ${total}`;
+  document.getElementById("quizPercent").textContent = `${percent}%`;
+
+  const missed = state.quizResults.filter(r => !r.correct);
+  const review = document.getElementById("quizReview");
+
+  if (!missed.length) {
+    review.innerHTML = `
+      <div class="quiz-perfect">
+        Perfect score — every answer was correct.
+      </div>
+    `;
+  } else {
+    review.innerHTML = `
+      <div class="quiz-review-head">
+        <span class="eyebrow">Review</span>
+        <h3>Questions to review</h3>
+      </div>
+      ${missed.map(r => `
+        <article class="quiz-review-item">
+          <strong>${escapeHtml(r.prompt)}</strong>
+          <span>Your answer: ${escapeHtml(r.given)}</span>
+          <span>Correct answer: ${escapeHtml(r.answer)}</span>
+        </article>
+      `).join("")}
+    `;
+  }
+
+  showPanel("quizCompleteView");
+
+  try {
+    await saveQuizProgress();
+    await loadSidebarStats();
+  } catch (err) {
+    handleFirebaseError(err, "Quiz score was shown, but cloud progress could not be saved.");
+  }
+}
+
+function tryQuizAgain() {
+  state.quizIndex = 0;
+  state.quizScore = 0;
+  state.quizResults = [];
+  state.quizAnswered = false;
+
+  // Random order gets a fresh shuffle on each attempt.
+  if (state.quizConfig.order === "random" && state.pendingQuiz) {
+    state.quizQuestions = buildQuizQuestions(
+      state.pendingQuiz.scope,
+      state.pendingQuiz.deckId,
+      state.quizConfig
+    );
+  }
+
+  showPanel("quizView");
+  renderQuizQuestion();
 }
 
 function prepareSession(title, label) {
@@ -1355,6 +1787,30 @@ document.addEventListener("click", async e => {
     return chooseStudyOrder("deck", studyDeck.dataset.studyDeck);
   }
 
+  const quizDeck = e.target.closest("[data-quiz-deck]");
+  if (quizDeck) {
+    return chooseQuizSetup("deck", quizDeck.dataset.quizDeck);
+  }
+
+  const quizSettingBtn = e.target.closest(".quiz-setting-btn");
+  if (quizSettingBtn) {
+    const group = quizSettingBtn.closest("[data-quiz-setting]");
+    const setting = group.dataset.quizSetting;
+
+    state.quizConfig[setting] = quizSettingBtn.dataset.value;
+
+    group.querySelectorAll(".quiz-setting-btn").forEach(btn => {
+      btn.classList.toggle("active", btn === quizSettingBtn);
+    });
+
+    return;
+  }
+
+  const quizChoice = e.target.closest("[data-quiz-choice]");
+  if (quizChoice) {
+    return answerQuizQuestion(quizChoice.dataset.quizChoice);
+  }
+
   const rating = e.target.closest("[data-rating]");
   if (rating) {
     return rateCurrentCard(rating.dataset.rating);
@@ -1396,6 +1852,22 @@ document.getElementById("saveDeckBtn").addEventListener("click", saveDeckChanges
 document.getElementById("deleteDeckBtn").addEventListener("click", deleteCurrentDeck);
 
 document.getElementById("studyClassBtn").addEventListener("click", () => chooseStudyOrder("class"));
+document.getElementById("quizClassBtn").addEventListener("click", () => chooseQuizSetup("class"));
+document.getElementById("startQuizBtn").addEventListener("click", startConfiguredQuiz);
+document.getElementById("quizCheckBtn").addEventListener("click", () => {
+  answerQuizQuestion(document.getElementById("quizTypingInput").value);
+});
+document.getElementById("quizTypingInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    answerQuizQuestion(e.target.value);
+  }
+});
+document.getElementById("quizNextBtn").addEventListener("click", nextQuizQuestion);
+document.getElementById("exitQuizBtn").addEventListener("click", returnToClass);
+document.getElementById("quizBackToClassBtn").addEventListener("click", returnToClass);
+document.getElementById("quizTryAgainBtn").addEventListener("click", tryQuizAgain);
+
 document.getElementById("refreshLearnersBtn").addEventListener("click", loadLearners);
 
 document.getElementById("revealBtn").addEventListener("click", e => {
