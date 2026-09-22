@@ -1,64 +1,61 @@
-# Flashcards Firebase Setup
+# Flashcards — Share-Link Version
 
-This version uses Firebase Authentication and Cloud Firestore.
+This version uses direct deck links instead of classes and class codes.
 
-## 1. Create a Firebase project
-Go to Firebase Console and create a project.
+## Student flow
 
-## 2. Register a Web App
-Project settings → Your apps → Add app → Web.
+Teacher posts a link like:
 
-Copy the `firebaseConfig` values into `firebase-config.js`.
+`https://YOUR-SITE/Flashcards/?deck=FIREBASE_DECK_ID`
 
-## 3. Enable Google sign-in
-Firebase Console → Authentication → Sign-in method → Google → Enable.
+Student clicks it and can study immediately.
 
-For GitHub Pages, also add your GitHub Pages hostname under Authentication → Settings → Authorized domains.
+Google sign-in is optional for studying. It is required only if the student wants progress saved to their name.
 
-## 4. Create Cloud Firestore
-Firebase Console → Firestore Database → Create database.
+## Teacher flow
 
-## 5. Publish the security rules
-Open `firestore.rules`, copy its contents, and paste them into:
-Firestore Database → Rules → Publish.
+1. Sign in with Google.
+2. Teacher/admin access is enabled with an `admins/{uid}` document.
+3. Create a deck.
+4. Click **Copy Link**.
+5. Paste the link into Google Classroom.
+6. Use **Progress** on the deck to see named student progress.
 
-Do not use "allow read, write: if true" for production.
+## Important Firestore change
 
-## 6. Make your account the teacher
-1. Open your deployed Flashcards site.
-2. Sign in with your Google account.
-3. The app shows your Firebase UID.
-4. In Firestore, create collection: `admins`
-5. Create a document whose Document ID is exactly your Firebase UID.
-6. Add any simple field, for example:
-   - `enabled` = `true`
-7. Refresh Flashcards and click "Check Teacher Access".
+This version uses:
+- `decks`
+- `progress`
+- `users`
+- `admins`
 
-Students do NOT need an admins document.
+It no longer uses:
+- `classes`
+- `classCodes`
+- class membership documents
 
-## 7. Normal classroom flow
+Replace your current Firestore Rules with the contents of `firestore.rules` and click **Publish**.
 
-Teacher:
-1. Sign in.
-2. Create a class.
-3. Share the generated class code.
-4. Create a deck inside the class.
+## Teacher/admin setup
 
-Student:
-1. Sign in.
-2. Enter the class code.
-3. Open the class.
-4. Study an assigned deck.
+If your teacher account is not already enabled:
 
-Teacher can open the Progress tab to see study totals and mastery.
+1. Sign in to the site.
+2. Copy the Firebase UID shown.
+3. In Firestore, create collection `admins`.
+4. Create a document whose Document ID is exactly the teacher UID.
+5. Add any field such as `enabled = true`.
+6. Refresh the site and click **Check Teacher Access**.
 
-## GitHub Pages files
+## GitHub files
 
-Keep these files together in the repository root:
+Upload these files together in the repository root:
 
 - `index.html`
 - `styles.css`
 - `app.js`
 - `firebase-config.js`
 
-`firestore.rules` and `SETUP.md` may also stay in the repository root. They are not loaded by the web page.
+The following can remain in the repo for reference:
+- `firestore.rules`
+- `SETUP.md`

@@ -12,20 +12,11 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    function isClassTeacher(classId) {
+    function ownsDeck(deckId) {
       return isAdmin() &&
-        get(/databases/$(database)/documents/classes/$(classId)).data.teacherId == request.auth.uid;
+        get(/databases/$(database)/documents/decks/$(deckId)).data.createdBy == request.auth.uid;
     }
 
-    function isClassMember(classId) {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid));
-    }
-
-    // Teacher/admin access is enabled by manually creating:
-    // admins/{TEACHER_FIREBASE_UID}
-    //
-    // Client code cannot create or edit admin records.
     match /admins/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
       allow list: if isAdmin();
@@ -35,75 +26,41 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, create, update: if signedIn() && request.auth.uid == uid;
       allow delete: if false;
-
-      match /classes/{classId} {
-        allow read: if signedIn() && request.auth.uid == uid;
-
-        // A student may add only their own class reference.
-        allow create: if signedIn()
-          && request.auth.uid == uid
-          && request.resource.data.classId == classId;
-
-        allow update, delete: if signedIn() && request.auth.uid == uid;
-      }
     }
 
-    // Exact-code lookup only. Students cannot list all class codes.
-    match /classCodes/{code} {
-      allow get: if signedIn();
-      allow list: if false;
-      allow create, update, delete: if isAdmin();
-    }
+    match /decks/{deckId} {
+      // Published decks are readable by anyone with the link.
+      allow get: if resource.data.published == true ||
+        (isAdmin() && resource.data.createdBy == request.auth.uid);
 
-    match /classes/{classId} {
-      allow get: if isClassTeacher(classId) || isClassMember(classId);
+      // Only admins can list decks, and queries must only return their own decks.
       allow list: if isAdmin();
+
       allow create: if isAdmin()
-        && request.resource.data.teacherId == request.auth.uid;
-      allow update, delete: if isClassTeacher(classId);
+        && request.resource.data.createdBy == request.auth.uid;
 
-      match /members/{uid} {
-        allow read: if isClassTeacher(classId) ||
-          (signedIn() && request.auth.uid == uid);
-
-        // Student joins only when the submitted joinCode matches the class code.
-        allow create: if signedIn()
-          && request.auth.uid == uid
-          && request.resource.data.studentId == uid
-          && request.resource.data.joinCode ==
-             get(/databases/$(database)/documents/classes/$(classId)).data.code;
-
-        allow update: if signedIn()
-          && request.auth.uid == uid
-          && resource.data.studentId == uid
-          && request.resource.data.studentId == uid;
-
-        allow delete: if isClassTeacher(classId) ||
-          (signedIn() && request.auth.uid == uid);
-      }
-
-      match /decks/{deckId} {
-        allow read: if isClassTeacher(classId) ||
-          (isClassMember(classId) && resource.data.published == true);
-
-        allow create, update, delete: if isClassTeacher(classId);
-      }
+      allow update, delete: if isAdmin()
+        && resource.data.createdBy == request.auth.uid;
     }
 
     match /progress/{progressId} {
-      allow read: if signedIn() && (
+      allow get: if signedIn() && (
         resource.data.studentId == request.auth.uid ||
-        isClassTeacher(resource.data.classId)
+        ownsDeck(resource.data.deckId)
+      );
+
+      allow list: if signedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        ownsDeck(resource.data.deckId)
       );
 
       allow create: if signedIn()
         && request.resource.data.studentId == request.auth.uid
-        && isClassMember(request.resource.data.classId);
+        && get(/databases/$(database)/documents/decks/$(request.resource.data.deckId)).data.published == true;
 
       allow update: if signedIn()
         && resource.data.studentId == request.auth.uid
         && request.resource.data.studentId == request.auth.uid
-        && request.resource.data.classId == resource.data.classId
         && request.resource.data.deckId == resource.data.deckId;
 
       allow delete: if false;
