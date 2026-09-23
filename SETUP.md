@@ -90,3 +90,26 @@ To create the Form:
 4. Run `createFlashcardsQuiz()`.
 5. Approve Google permissions the first time.
 6. Open the execution log for the Form editor/student URLs, or find the new Form in Google Drive.
+
+
+## Copy cards between decks and classes
+
+Class owners can copy cards into any deck they own.
+
+1. Open the destination class.
+2. In the destination deck, click **Copy**.
+3. Choose a source class.
+4. Choose a source deck.
+5. Select individual cards or use **Select All**.
+6. Leave **Skip cards already in the destination deck** enabled to avoid exact duplicate front/back pairs.
+7. Click **Copy Selected Cards**.
+
+Sources can include:
+
+- other decks in the current class,
+- decks in another class you own,
+- visible decks from a class shared with you.
+
+The source cards are not moved or linked. New independent card IDs are created in the destination deck, so later edits do not affect the original cards.
+
+No Firestore rule changes are required because source reads use the same existing owner/shared-class permissions and the destination write is restricted to the destination class owner.

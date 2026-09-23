@@ -556,6 +556,65 @@
       </div>
     </div>
 
+    <div id="copyCardsModal" class="modal copy-cards-modal hidden">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow">Reuse flashcards</span>
+          <h2>Copy cards from another deck</h2>
+        </div>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+
+      <div class="copy-destination-card">
+        <span>Copy into</span>
+        <strong id="copyCardsDestinationName">Destination deck</strong>
+      </div>
+
+      <div class="copy-source-grid">
+        <label>
+          Source class
+          <select id="copySourceClassSelect"></select>
+        </label>
+
+        <label>
+          Source deck
+          <select id="copySourceDeckSelect"></select>
+        </label>
+      </div>
+
+      <div class="copy-card-toolbar">
+        <div>
+          <strong id="copySourceCardCount">0 cards</strong>
+          <span id="copySelectionCount">0 selected</span>
+        </div>
+
+        <div class="copy-card-toolbar-actions">
+          <button id="copySelectAllBtn" class="secondary-btn compact-btn" type="button">Select All</button>
+          <button id="copyClearSelectionBtn" class="secondary-btn compact-btn" type="button">Clear</button>
+        </div>
+      </div>
+
+      <div id="copyCardsList" class="copy-cards-list">
+        <div class="copy-cards-empty">Choose a source deck.</div>
+      </div>
+
+      <div class="checkbox-row copy-duplicate-row">
+        <input id="copySkipDuplicates" type="checkbox" checked />
+        <label for="copySkipDuplicates">Skip cards already in the destination deck</label>
+      </div>
+
+      <div class="copy-cards-note">
+        Cards are copied, not moved. Editing a copied card later will not change the original card.
+      </div>
+
+      <div class="modal-actions">
+        <button id="copySelectedCardsBtn" class="primary-btn" type="button" disabled>
+          Copy Selected Cards
+        </button>
+        <button class="secondary-btn" data-close-modal type="button">Cancel</button>
+      </div>
+    </div>
+
     <div id="editDeckModal" class="modal hidden">
       <div class="modal-head">
         <div>

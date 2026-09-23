@@ -65,7 +65,10 @@ const state = {
   quizIndex: 0,
   quizScore: 0,
   quizResults: [],
-  quizAnswered: false
+  quizAnswered: false,
+  copyCardsDestinationDeckId: null,
+  copySourceDecks: [],
+  copySourceCards: []
 };
 
 const sampleDeck = {
@@ -672,6 +675,13 @@ function renderDeckRows() {
               >
                 ${deck.published === false ? "Show" : "Hide"}
               </button>
+              <button
+                class="deck-action-btn copy-cards-btn"
+                data-copy-cards-to-deck="${deck.id}"
+                title="Copy cards from another deck"
+              >
+                Copy
+              </button>
               <button class="deck-action-btn" data-edit-deck="${deck.id}" title="Edit deck">✎</button>
             </div>
           ` : ""}
@@ -817,6 +827,317 @@ async function createDeck() {
     );
   } catch (err) {
     handleFirebaseError(err, "Could not create the deck.");
+  }
+}
+
+
+function availableCopySourceClasses() {
+  const byId = new Map();
+
+  for (const c of [...state.ownedClasses, ...state.sharedClasses]) {
+    if (!c?.id) continue;
+    byId.set(c.id, c);
+  }
+
+  if (state.selectedClass?.id && !byId.has(state.selectedClass.id)) {
+    byId.set(state.selectedClass.id, {
+      ...state.selectedClass,
+      libraryType: isOwner() ? "owned" : "shared"
+    });
+  }
+
+  return [...byId.values()].sort((a, b) => {
+    if (a.id === state.selectedClass?.id) return -1;
+    if (b.id === state.selectedClass?.id) return 1;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  });
+}
+
+function copyCardKey(card) {
+  return `${normalizeText(card?.front)}\u0000${normalizeText(card?.back)}`;
+}
+
+function updateCopySelectionCount() {
+  const checked = document.querySelectorAll(
+    '#copyCardsList input[data-copy-card-index]:checked'
+  ).length;
+
+  document.getElementById("copySelectionCount").textContent =
+    `${checked} selected`;
+  document.getElementById("copySelectedCardsBtn").disabled = checked === 0;
+}
+
+function renderCopySourceCards() {
+  const host = document.getElementById("copyCardsList");
+  const cards = state.copySourceCards || [];
+
+  document.getElementById("copySourceCardCount").textContent =
+    `${cards.length} card${cards.length === 1 ? "" : "s"}`;
+
+  if (!cards.length) {
+    host.innerHTML = `
+      <div class="copy-cards-empty">
+        This source deck does not contain any cards.
+      </div>
+    `;
+    updateCopySelectionCount();
+    return;
+  }
+
+  host.innerHTML = cards.map((card, index) => `
+    <label class="copy-card-row">
+      <input
+        type="checkbox"
+        data-copy-card-index="${index}"
+      />
+      <span class="copy-card-number">${index + 1}</span>
+      <span class="copy-card-content">
+        <strong>${escapeHtml(card.front)}</strong>
+        <span class="copy-card-arrow">→</span>
+        <span>${escapeHtml(card.back)}</span>
+      </span>
+    </label>
+  `).join("");
+
+  updateCopySelectionCount();
+}
+
+async function loadCopySourceCards() {
+  const deckId = document.getElementById("copySourceDeckSelect").value;
+  const deck = state.copySourceDecks.find(d => d.id === deckId);
+
+  state.copySourceCards = Array.isArray(deck?.cards) ? deck.cards : [];
+  renderCopySourceCards();
+}
+
+async function loadCopySourceDecks(classId) {
+  const deckSelect = document.getElementById("copySourceDeckSelect");
+  const cardList = document.getElementById("copyCardsList");
+
+  state.copySourceDecks = [];
+  state.copySourceCards = [];
+
+  deckSelect.innerHTML = `<option value="">Loading decks…</option>`;
+  deckSelect.disabled = true;
+  cardList.innerHTML = `<div class="copy-cards-empty">Loading decks…</div>`;
+  document.getElementById("copySourceCardCount").textContent = "0 cards";
+  updateCopySelectionCount();
+
+  if (!classId) {
+    deckSelect.innerHTML = `<option value="">Choose a class first</option>`;
+    return;
+  }
+
+  try {
+    let decks;
+
+    if (classId === state.selectedClass?.id && isOwner()) {
+      decks = [...state.decks];
+    } else {
+      const sourceClass = availableCopySourceClasses().find(c => c.id === classId);
+      if (!sourceClass) throw new Error("Source class is not available.");
+
+      const decksRef = collection(state.db, "classes", classId, "decks");
+      const userOwnsSource = sourceClass.ownerId === state.user.uid;
+
+      const sourceQuery = userOwnsSource
+        ? decksRef
+        : query(decksRef, where("published", "==", true));
+
+      const snap = await getDocs(sourceQuery);
+
+      decks = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => {
+          const ao = Number(a.order ?? 99999);
+          const bo = Number(b.order ?? 99999);
+          if (ao !== bo) return ao - bo;
+          return String(a.name || "").localeCompare(String(b.name || ""));
+        });
+    }
+
+    // Do not allow copying a deck into itself.
+    decks = decks.filter(deck => !(
+      classId === state.selectedClass.id &&
+      deck.id === state.copyCardsDestinationDeckId
+    ));
+
+    state.copySourceDecks = decks;
+
+    if (!decks.length) {
+      deckSelect.innerHTML = `<option value="">No available decks</option>`;
+      cardList.innerHTML = `
+        <div class="copy-cards-empty">
+          There are no other decks available in this class.
+        </div>
+      `;
+      deckSelect.disabled = true;
+      return;
+    }
+
+    deckSelect.innerHTML = decks.map(deck => `
+      <option value="${deck.id}">
+        ${escapeHtml(deck.name)} (${deck.cards?.length || 0})
+      </option>
+    `).join("");
+
+    deckSelect.disabled = false;
+    await loadCopySourceCards();
+  } catch (err) {
+    console.error(err);
+    deckSelect.innerHTML = `<option value="">Could not load decks</option>`;
+    cardList.innerHTML = `
+      <div class="copy-cards-empty">
+        Could not load decks from this class.
+      </div>
+    `;
+    showMessage("Could not load source decks.", "error");
+  }
+}
+
+async function openCopyCards(deckId) {
+  if (!isOwner()) return;
+
+  const destination = state.decks.find(d => d.id === deckId);
+  if (!destination) return;
+
+  state.copyCardsDestinationDeckId = deckId;
+  state.copySourceDecks = [];
+  state.copySourceCards = [];
+
+  document.getElementById("copyCardsDestinationName").textContent =
+    destination.name;
+  document.getElementById("copySkipDuplicates").checked = true;
+  document.getElementById("copySelectionCount").textContent = "0 selected";
+  document.getElementById("copySelectedCardsBtn").disabled = true;
+
+  const classes = availableCopySourceClasses();
+  const classSelect = document.getElementById("copySourceClassSelect");
+
+  classSelect.innerHTML = classes.map(c => {
+    const label =
+      c.ownerId === state.user.uid
+        ? "My class"
+        : "Shared with me";
+
+    return `
+      <option value="${c.id}">
+        ${escapeHtml(c.name)} — ${label}
+      </option>
+    `;
+  }).join("");
+
+  openModal("copyCardsModal");
+
+  const preferredClass =
+    classes.find(c => c.id === state.selectedClass.id)?.id ||
+    classes[0]?.id ||
+    "";
+
+  classSelect.value = preferredClass;
+  await loadCopySourceDecks(preferredClass);
+}
+
+async function copySelectedCards() {
+  if (!isOwner() || !state.copyCardsDestinationDeckId) return;
+
+  const destination = state.decks.find(
+    d => d.id === state.copyCardsDestinationDeckId
+  );
+
+  if (!destination) {
+    showMessage("Destination deck could not be found.", "error");
+    return;
+  }
+
+  const selectedIndexes = [...document.querySelectorAll(
+    '#copyCardsList input[data-copy-card-index]:checked'
+  )]
+    .map(input => Number(input.dataset.copyCardIndex))
+    .filter(index => Number.isInteger(index));
+
+  if (!selectedIndexes.length) {
+    showMessage("Select at least one card to copy.", "error");
+    return;
+  }
+
+  const selectedCards = selectedIndexes
+    .map(index => state.copySourceCards[index])
+    .filter(Boolean);
+
+  const skipDuplicates =
+    document.getElementById("copySkipDuplicates").checked;
+
+  const existingCards = Array.isArray(destination.cards)
+    ? destination.cards
+    : [];
+
+  const existingKeys = new Set(existingCards.map(copyCardKey));
+  const cardsToAdd = [];
+  let skipped = 0;
+
+  for (const sourceCard of selectedCards) {
+    const key = copyCardKey(sourceCard);
+
+    if (skipDuplicates && existingKeys.has(key)) {
+      skipped += 1;
+      continue;
+    }
+
+    cardsToAdd.push({
+      id: uid("card"),
+      front: sourceCard.front,
+      back: sourceCard.back
+    });
+
+    existingKeys.add(key);
+  }
+
+  if (!cardsToAdd.length) {
+    showMessage(
+      skipped
+        ? "All selected cards are already in this deck."
+        : "No cards were copied.",
+      "error"
+    );
+    return;
+  }
+
+  const copyBtn = document.getElementById("copySelectedCardsBtn");
+  copyBtn.disabled = true;
+  copyBtn.textContent = "Copying…";
+
+  try {
+    await updateDoc(
+      doc(
+        state.db,
+        "classes",
+        state.selectedClass.id,
+        "decks",
+        destination.id
+      ),
+      {
+        cards: [...existingCards, ...cardsToAdd],
+        updatedAt: serverTimestamp()
+      }
+    );
+
+    closeModals();
+    await openClass(state.selectedClass.id);
+
+    const skippedText = skipped
+      ? ` ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped.`
+      : "";
+
+    showMessage(
+      `${cardsToAdd.length} card${cardsToAdd.length === 1 ? "" : "s"} copied to "${destination.name}".${skippedText}`,
+      "success"
+    );
+  } catch (err) {
+    handleFirebaseError(err, "Could not copy the selected cards.");
+  } finally {
+    copyBtn.textContent = "Copy Selected Cards";
+    copyBtn.disabled = false;
   }
 }
 
@@ -2066,6 +2387,11 @@ document.addEventListener("click", async e => {
     return openEditDeck(editDeck.dataset.editDeck);
   }
 
+  const copyCardsDeck = e.target.closest("[data-copy-cards-to-deck]");
+  if (copyCardsDeck) {
+    return openCopyCards(copyCardsDeck.dataset.copyCardsToDeck);
+  }
+
   const toggleDeckVisibilityBtn = e.target.closest("[data-toggle-deck-visibility]");
   if (toggleDeckVisibilityBtn) {
     return toggleDeckVisibility(toggleDeckVisibilityBtn.dataset.toggleDeckVisibility);
@@ -2114,6 +2440,10 @@ document.addEventListener("click", async e => {
     return rateCurrentCard(rating.dataset.rating);
   }
 
+  if (e.target.matches('#copyCardsList input[data-copy-card-index]')) {
+    updateCopySelectionCount();
+  }
+
   if (e.target.closest("[data-close-modal]")) {
     closeModals();
   }
@@ -2148,6 +2478,31 @@ document.getElementById("loadSampleBtn").addEventListener("click", () => {
 
 document.getElementById("saveDeckBtn").addEventListener("click", saveDeckChanges);
 document.getElementById("deleteDeckBtn").addEventListener("click", deleteCurrentDeck);
+
+document.getElementById("copySourceClassSelect").addEventListener("change", e => {
+  loadCopySourceDecks(e.target.value);
+});
+document.getElementById("copySourceDeckSelect").addEventListener("change", loadCopySourceCards);
+document.getElementById("copySelectAllBtn").addEventListener("click", () => {
+  document.querySelectorAll(
+    '#copyCardsList input[data-copy-card-index]'
+  ).forEach(input => {
+    input.checked = true;
+  });
+  updateCopySelectionCount();
+});
+document.getElementById("copyClearSelectionBtn").addEventListener("click", () => {
+  document.querySelectorAll(
+    '#copyCardsList input[data-copy-card-index]'
+  ).forEach(input => {
+    input.checked = false;
+  });
+  updateCopySelectionCount();
+});
+document.getElementById("copySelectedCardsBtn").addEventListener(
+  "click",
+  copySelectedCards
+);
 
 document.getElementById("studyClassBtn").addEventListener("click", () => chooseStudyOrder("class"));
 document.getElementById("quizClassBtn").addEventListener("click", () => chooseQuizSetup("class"));
