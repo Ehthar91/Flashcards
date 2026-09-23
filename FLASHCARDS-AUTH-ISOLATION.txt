@@ -1,0 +1,15 @@
+FLASHCARDS AUTHENTICATION ISOLATION
+
+When Flashcards is opened inside Classroom Tools, the iframe now loads:
+  flashcards.html?embedded=classroom
+
+Embedded Flashcards uses a named Firebase app with in-memory authentication.
+This means:
+- It does NOT restore a previous standalone Flashcards Google login.
+- Teachers must click Continue with Google inside the embedded Flashcards tool.
+- Signing in/out of embedded Flashcards does not sign the standalone Flashcards page in/out.
+- The embedded Flashcards login lasts only for the current loaded page/iframe session.
+- The standalone Flashcards page keeps its normal remembered Firebase login.
+- Classroom Tools' This device / Google account setting remains independent.
+
+No Firebase rules change is required for this update.
