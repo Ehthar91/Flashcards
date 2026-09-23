@@ -39,6 +39,8 @@ const state = {
   db: null,
   user: null,
   ownedClasses: [],
+  archivedClasses: [],
+  archivedDecks: [],
   sharedClasses: [],
   selectedClass: null,
   decks: [],
@@ -337,9 +339,12 @@ async function loadOwnedClasses() {
   );
 
   const snap = await getDocs(q);
-  state.ownedClasses = snap.docs
+  const allOwned = snap.docs
     .map(d => ({ id: d.id, ...d.data(), libraryType: "owned" }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+  state.ownedClasses = allOwned.filter(c => c.archived !== true);
+  state.archivedClasses = allOwned.filter(c => c.archived === true);
 }
 
 async function loadSharedClasses() {
@@ -355,7 +360,7 @@ async function loadSharedClasses() {
       if (cSnap.exists()) {
         const c = { id: cSnap.id, ...cSnap.data(), libraryType: "shared" };
 
-        if (c.ownerId !== state.user.uid) {
+        if (c.ownerId !== state.user.uid && c.archived !== true) {
           classes.push(c);
         }
       }
@@ -418,6 +423,7 @@ function renderSidebar() {
 }
 
 function renderLibrary() {
+  document.getElementById("archiveClassCountBadge").textContent = state.archivedClasses.length;
   document.getElementById("ownedClassCount").textContent = state.ownedClasses.length;
   document.getElementById("sharedClassCount").textContent = state.sharedClasses.length;
 
@@ -464,6 +470,7 @@ async function createClass() {
       ownerId: state.user.uid,
       ownerName: state.user.displayName || state.user.email || "Owner",
       published,
+      archived: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -563,6 +570,7 @@ async function loadDecks() {
 
   state.decks = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
+    .filter(deck => deck.archived !== true)
     .sort((a, b) => {
       const ao = Number(a.order ?? 99999);
       const bo = Number(b.order ?? 99999);
@@ -709,6 +717,246 @@ function setTab(name) {
   }
 }
 
+
+async function loadArchivedDecks() {
+  const classes = [...state.ownedClasses, ...state.archivedClasses];
+  const archived = [];
+
+  for (const c of classes) {
+    try {
+      const snap = await getDocs(
+        collection(state.db, "classes", c.id, "decks")
+      );
+
+      for (const deckSnap of snap.docs) {
+        const deck = { id: deckSnap.id, ...deckSnap.data() };
+
+        if (deck.archived === true) {
+          archived.push({
+            ...deck,
+            classId: c.id,
+            className: c.name,
+            classArchived: c.archived === true
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Could not load archived decks for", c.id, err);
+    }
+  }
+
+  state.archivedDecks = archived.sort((a, b) => {
+    const classCompare = String(a.className || "").localeCompare(
+      String(b.className || "")
+    );
+    if (classCompare) return classCompare;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  });
+}
+
+function renderArchiveManager() {
+  const classHost = document.getElementById("archivedClassesList");
+  const deckHost = document.getElementById("archivedDecksList");
+
+  document.getElementById("archivedClassesCount").textContent =
+    state.archivedClasses.length;
+  document.getElementById("archivedDecksCount").textContent =
+    state.archivedDecks.length;
+  document.getElementById("archiveClassCountBadge").textContent =
+    state.archivedClasses.length;
+
+  classHost.innerHTML = state.archivedClasses.length
+    ? state.archivedClasses.map(c => `
+        <article class="archive-item">
+          <div class="archive-item-icon">C</div>
+          <div class="archive-item-copy">
+            <strong>${escapeHtml(c.name)}</strong>
+            <span>
+              Class · ${c.archivedPublished ? "Sharing was enabled" : "Was private"}
+            </span>
+          </div>
+          <button
+            class="secondary-btn compact-btn"
+            data-restore-class="${c.id}"
+          >
+            Restore
+          </button>
+        </article>
+      `).join("")
+    : `<div class="archive-empty">No archived classes.</div>`;
+
+  deckHost.innerHTML = state.archivedDecks.length
+    ? state.archivedDecks.map(deck => `
+        <article class="archive-item">
+          <div class="archive-item-icon">D</div>
+          <div class="archive-item-copy">
+            <strong>${escapeHtml(deck.name)}</strong>
+            <span>
+              ${escapeHtml(deck.className)}
+              ${deck.classArchived ? " · class archived" : ""}
+              · ${deck.cards?.length || 0} cards
+            </span>
+          </div>
+          <button
+            class="secondary-btn compact-btn"
+            data-restore-deck="${deck.classId}:${deck.id}"
+          >
+            Restore
+          </button>
+        </article>
+      `).join("")
+    : `<div class="archive-empty">No archived decks.</div>`;
+}
+
+async function openArchiveManager() {
+  openModal("archiveModal");
+  document.getElementById("archivedClassesList").innerHTML =
+    `<div class="archive-empty">Loading…</div>`;
+  document.getElementById("archivedDecksList").innerHTML =
+    `<div class="archive-empty">Loading…</div>`;
+
+  await loadOwnedClasses();
+  await loadArchivedDecks();
+  renderArchiveManager();
+}
+
+async function archiveCurrentClass() {
+  if (!isOwner() || !state.selectedClass) return;
+
+  const classToArchive = state.selectedClass;
+
+  if (!confirm(
+    `Archive "${classToArchive.name}"? It will disappear from your normal class list and be hidden from students.`
+  )) {
+    return;
+  }
+
+  try {
+    await updateDoc(
+      doc(state.db, "classes", classToArchive.id),
+      {
+        archived: true,
+        archivedPublished: Boolean(classToArchive.published),
+        published: false,
+        archivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }
+    );
+
+    closeModals();
+    state.selectedClass = null;
+    state.decks = [];
+    await loadLibrary();
+    showPanel("libraryView");
+    showMessage(
+      `"${classToArchive.name}" was archived. Its cards are still available for copying.`,
+      "success"
+    );
+  } catch (err) {
+    handleFirebaseError(err, "Could not archive the class.");
+  }
+}
+
+async function restoreArchivedClass(classId) {
+  const archivedClass = state.archivedClasses.find(c => c.id === classId);
+  if (!archivedClass) return;
+
+  try {
+    await updateDoc(
+      doc(state.db, "classes", classId),
+      {
+        archived: false,
+        published: Boolean(archivedClass.archivedPublished),
+        archivedPublished: null,
+        restoredAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }
+    );
+
+    await loadLibrary();
+    await loadArchivedDecks();
+    renderArchiveManager();
+    showMessage(`"${archivedClass.name}" was restored.`, "success");
+  } catch (err) {
+    handleFirebaseError(err, "Could not restore the class.");
+  }
+}
+
+async function archiveCurrentDeck() {
+  if (!isOwner() || !state.editingDeckId) return;
+
+  const deck = state.decks.find(d => d.id === state.editingDeckId);
+  if (!deck) return;
+
+  if (!confirm(
+    `Archive "${deck.name}"? It will disappear from this class and be hidden from students.`
+  )) {
+    return;
+  }
+
+  try {
+    await updateDoc(
+      doc(
+        state.db,
+        "classes",
+        state.selectedClass.id,
+        "decks",
+        deck.id
+      ),
+      {
+        archived: true,
+        archivedPublished: deck.published !== false,
+        published: false,
+        archivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }
+    );
+
+    closeModals();
+    await openClass(state.selectedClass.id);
+    showMessage(
+      `"${deck.name}" was archived. Its cards are still available for copying.`,
+      "success"
+    );
+  } catch (err) {
+    handleFirebaseError(err, "Could not archive the deck.");
+  }
+}
+
+async function restoreArchivedDeck(classId, deckId) {
+  const archivedDeck = state.archivedDecks.find(
+    d => d.classId === classId && d.id === deckId
+  );
+
+  if (!archivedDeck) return;
+
+  try {
+    await updateDoc(
+      doc(state.db, "classes", classId, "decks", deckId),
+      {
+        archived: false,
+        published: Boolean(archivedDeck.archivedPublished),
+        archivedPublished: null,
+        restoredAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }
+    );
+
+    await loadArchivedDecks();
+    renderArchiveManager();
+
+    if (state.selectedClass?.id === classId) {
+      await openClass(classId);
+      openModal("archiveModal");
+      renderArchiveManager();
+    }
+
+    showMessage(`"${archivedDeck.name}" was restored.`, "success");
+  } catch (err) {
+    handleFirebaseError(err, "Could not restore the deck.");
+  }
+}
+
 function openEditClass() {
   if (!isOwner()) return;
 
@@ -812,6 +1060,7 @@ async function createDeck() {
       name,
       cards,
       published,
+      archived: false,
       order: state.decks.length,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -834,7 +1083,11 @@ async function createDeck() {
 function availableCopySourceClasses() {
   const byId = new Map();
 
-  for (const c of [...state.ownedClasses, ...state.sharedClasses]) {
+  for (const c of [
+    ...state.ownedClasses,
+    ...state.archivedClasses,
+    ...state.sharedClasses
+  ]) {
     if (!c?.id) continue;
     byId.set(c.id, c);
   }
@@ -929,32 +1182,31 @@ async function loadCopySourceDecks(classId) {
   }
 
   try {
-    let decks;
+    const sourceClass = availableCopySourceClasses().find(c => c.id === classId);
+    if (!sourceClass) throw new Error("Source class is not available.");
 
-    if (classId === state.selectedClass?.id && isOwner()) {
-      decks = [...state.decks];
-    } else {
-      const sourceClass = availableCopySourceClasses().find(c => c.id === classId);
-      if (!sourceClass) throw new Error("Source class is not available.");
+    const decksRef = collection(state.db, "classes", classId, "decks");
+    const userOwnsSource = sourceClass.ownerId === state.user.uid;
 
-      const decksRef = collection(state.db, "classes", classId, "decks");
-      const userOwnsSource = sourceClass.ownerId === state.user.uid;
+    const sourceQuery = userOwnsSource
+      ? decksRef
+      : query(decksRef, where("published", "==", true));
 
-      const sourceQuery = userOwnsSource
-        ? decksRef
-        : query(decksRef, where("published", "==", true));
+    const snap = await getDocs(sourceQuery);
 
-      const snap = await getDocs(sourceQuery);
+    let decks = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(deck => userOwnsSource || deck.archived !== true)
+      .sort((a, b) => {
+        const archivedCompare =
+          Number(a.archived === true) - Number(b.archived === true);
+        if (archivedCompare) return archivedCompare;
 
-      decks = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => {
-          const ao = Number(a.order ?? 99999);
-          const bo = Number(b.order ?? 99999);
-          if (ao !== bo) return ao - bo;
-          return String(a.name || "").localeCompare(String(b.name || ""));
-        });
-    }
+        const ao = Number(a.order ?? 99999);
+        const bo = Number(b.order ?? 99999);
+        if (ao !== bo) return ao - bo;
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      });
 
     // Do not allow copying a deck into itself.
     decks = decks.filter(deck => !(
@@ -977,7 +1229,9 @@ async function loadCopySourceDecks(classId) {
 
     deckSelect.innerHTML = decks.map(deck => `
       <option value="${deck.id}">
-        ${escapeHtml(deck.name)} (${deck.cards?.length || 0})
+        ${escapeHtml(deck.name)}
+        ${deck.archived === true ? " — Archived" : ""}
+        (${deck.cards?.length || 0})
       </option>
     `).join("");
 
@@ -1020,9 +1274,11 @@ async function openCopyCards(deckId) {
         ? "My class"
         : "Shared with me";
 
+    const archivedLabel = c.archived === true ? " · Archived" : "";
+
     return `
       <option value="${c.id}">
-        ${escapeHtml(c.name)} — ${label}
+        ${escapeHtml(c.name)} — ${label}${archivedLabel}
       </option>
     `;
   }).join("");
@@ -2444,6 +2700,17 @@ document.addEventListener("click", async e => {
     updateCopySelectionCount();
   }
 
+  const restoreClassBtn = e.target.closest("[data-restore-class]");
+  if (restoreClassBtn) {
+    return restoreArchivedClass(restoreClassBtn.dataset.restoreClass);
+  }
+
+  const restoreDeckBtn = e.target.closest("[data-restore-deck]");
+  if (restoreDeckBtn) {
+    const [classId, deckId] = restoreDeckBtn.dataset.restoreDeck.split(":");
+    return restoreArchivedDeck(classId, deckId);
+  }
+
   if (e.target.closest("[data-close-modal]")) {
     closeModals();
   }
@@ -2465,6 +2732,8 @@ document.getElementById("createClassBtn").addEventListener("click", createClass)
 document.getElementById("editClassBtn").addEventListener("click", openEditClass);
 document.getElementById("editIntroBtn").addEventListener("click", openEditClass);
 document.getElementById("saveClassBtn").addEventListener("click", saveClassChanges);
+document.getElementById("archiveClassBtn").addEventListener("click", archiveCurrentClass);
+document.getElementById("openArchiveBtn").addEventListener("click", openArchiveManager);
 
 document.getElementById("shareClassBtn").addEventListener("click", () => copyClassLink());
 document.getElementById("removeSharedClassBtn").addEventListener("click", removeSharedClass);
@@ -2477,6 +2746,7 @@ document.getElementById("loadSampleBtn").addEventListener("click", () => {
 });
 
 document.getElementById("saveDeckBtn").addEventListener("click", saveDeckChanges);
+document.getElementById("archiveDeckBtn").addEventListener("click", archiveCurrentDeck);
 document.getElementById("deleteDeckBtn").addEventListener("click", deleteCurrentDeck);
 
 document.getElementById("copySourceClassSelect").addEventListener("change", e => {

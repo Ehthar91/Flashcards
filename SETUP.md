@@ -113,3 +113,32 @@ Sources can include:
 The source cards are not moved or linked. New independent card IDs are created in the destination deck, so later edits do not affect the original cards.
 
 No Firestore rule changes are required because source reads use the same existing owner/shared-class permissions and the destination write is restricted to the destination class owner.
+
+
+## Archive classes and decks
+
+Class owners can archive classes and individual decks without deleting them.
+
+### Archive a class
+Open the class → Edit Class → **Archive Class**.
+
+- The class disappears from the normal class list.
+- Sharing is temporarily turned off while archived.
+- Its previous sharing setting is remembered.
+- All decks/cards stay in Firestore.
+- The class remains available as a source in **Copy Cards**.
+
+### Archive a deck
+Open the deck → Edit Deck → **Archive Deck**.
+
+- The deck disappears from the normal Decks tab.
+- It is hidden from students while archived.
+- Its previous visibility setting is remembered.
+- Its cards remain available in **Copy Cards**.
+
+### Restore
+Use the **Archived** button at the bottom of the sidebar.
+
+Archived classes and decks each have a **Restore** button. Restoring returns the previous sharing/visibility setting.
+
+No Firestore rule change is required for this feature. Archive/restore writes remain owner-only under the existing rules.

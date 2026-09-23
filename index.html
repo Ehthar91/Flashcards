@@ -93,6 +93,11 @@
       <nav id="classSidebarList" class="class-sidebar-list"></nav>
 
       <div class="sidebar-bottom">
+        <button id="openArchiveBtn" class="sidebar-archive-btn">
+          <span>▣</span>
+          Archived
+          <strong id="archiveClassCountBadge">0</strong>
+        </button>
         <button id="signOutBtn" class="sidebar-signout">Sign out</button>
       </div>
     </aside>
@@ -406,8 +411,13 @@
         <label for="editClassPublished">Enable class sharing</label>
       </div>
 
+      <div class="archive-explainer">
+        Archiving removes this class from your normal class list and hides it from students, but keeps all decks and cards available for copying later.
+      </div>
+
       <div class="modal-actions">
         <button id="saveClassBtn" class="primary-btn">Save Changes</button>
+        <button id="archiveClassBtn" class="archive-btn">Archive Class</button>
         <button class="secondary-btn" data-close-modal>Cancel</button>
       </div>
     </div>
@@ -556,6 +566,47 @@
       </div>
     </div>
 
+    <div id="archiveModal" class="modal archive-modal hidden">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow">Saved for later</span>
+          <h2>Archived</h2>
+        </div>
+        <button class="modal-close" data-close-modal>×</button>
+      </div>
+
+      <p class="archive-intro">
+        Archived classes and decks are hidden from your normal workspace and from students.
+        You can restore them anytime, and their cards stay available as Copy Cards sources.
+      </p>
+
+      <section class="archive-section">
+        <div class="archive-section-head">
+          <div>
+            <span class="eyebrow">Classes</span>
+            <h3>Archived Classes</h3>
+          </div>
+          <span id="archivedClassesCount" class="count-badge">0</span>
+        </div>
+        <div id="archivedClassesList" class="archive-list"></div>
+      </section>
+
+      <section class="archive-section">
+        <div class="archive-section-head">
+          <div>
+            <span class="eyebrow">Decks</span>
+            <h3>Archived Decks</h3>
+          </div>
+          <span id="archivedDecksCount" class="count-badge">0</span>
+        </div>
+        <div id="archivedDecksList" class="archive-list"></div>
+      </section>
+
+      <div class="modal-actions">
+        <button class="secondary-btn" data-close-modal>Close</button>
+      </div>
+    </div>
+
     <div id="copyCardsModal" class="modal copy-cards-modal hidden">
       <div class="modal-head">
         <div>
@@ -643,8 +694,13 @@
         Hidden decks stay in your class but are not shown to students.
       </div>
 
+      <div class="archive-explainer">
+        Archiving removes this deck from the class and hides it from students, but its cards remain available in Copy Cards.
+      </div>
+
       <div class="modal-actions">
         <button id="saveDeckBtn" class="primary-btn">Save Changes</button>
+        <button id="archiveDeckBtn" class="archive-btn">Archive Deck</button>
         <button id="deleteDeckBtn" class="danger-btn">Delete Deck</button>
         <button class="secondary-btn" data-close-modal>Cancel</button>
       </div>
