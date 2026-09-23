@@ -2794,3 +2794,65 @@ body.dark .archive-btn {
     justify-self: start;
   }
 }
+
+
+/* =========================================================
+   ARCHIVE CLASS DIRECTLY FROM SIDEBAR
+   ========================================================= */
+
+.sidebar-class-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 5px;
+  border-radius: 12px;
+}
+
+.sidebar-class-row .sidebar-class-item {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.sidebar-class-archive-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px;
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.52);
+  font-size: .75rem;
+  cursor: pointer;
+  opacity: .28;
+  transition:
+    opacity .15s ease,
+    background .15s ease,
+    color .15s ease,
+    transform .15s ease;
+}
+
+.sidebar-class-row:hover .sidebar-class-archive-btn,
+.sidebar-class-row.active .sidebar-class-archive-btn,
+.sidebar-class-archive-btn:focus-visible {
+  opacity: 1;
+}
+
+.sidebar-class-archive-btn:hover {
+  background: rgba(243,180,92,.18);
+  color: #ffd28b;
+  transform: translateY(-1px);
+}
+
+.sidebar-class-archive-btn:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 760px) {
+  .sidebar-class-archive-btn {
+    opacity: .8;
+  }
+}

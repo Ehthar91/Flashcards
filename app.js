@@ -411,15 +411,38 @@ function renderSidebar() {
     return;
   }
 
-  host.innerHTML = classes.map(c => `
-    <button class="sidebar-class-item ${state.selectedClass?.id === c.id ? "active" : ""}" data-sidebar-class="${c.id}">
-      <span class="sidebar-stack-icon"><span></span></span>
-      <span class="sidebar-class-copy">
-        <strong>${escapeHtml(c.name)}</strong>
-        <small>${c.libraryType === "owned" ? "Owner" : "Study access"}</small>
-      </span>
-    </button>
-  `).join("");
+  host.innerHTML = classes.map(c => {
+    const active = state.selectedClass?.id === c.id;
+    const owned = c.libraryType === "owned";
+
+    return `
+      <div class="sidebar-class-row ${active ? "active" : ""}">
+        <button
+          class="sidebar-class-item ${active ? "active" : ""}"
+          data-sidebar-class="${c.id}"
+          type="button"
+        >
+          <span class="sidebar-stack-icon"><span></span></span>
+          <span class="sidebar-class-copy">
+            <strong>${escapeHtml(c.name)}</strong>
+            <small>${owned ? "Owner" : "Study access"}</small>
+          </span>
+        </button>
+
+        ${owned ? `
+          <button
+            class="sidebar-class-archive-btn"
+            data-archive-sidebar-class="${c.id}"
+            type="button"
+            title="Archive class"
+            aria-label="Archive ${escapeHtml(c.name)}"
+          >
+            ▣
+          </button>
+        ` : ""}
+      </div>
+    `;
+  }).join("");
 }
 
 function renderLibrary() {
@@ -856,6 +879,54 @@ async function archiveCurrentClass() {
     handleFirebaseError(err, "Could not archive the class.");
   }
 }
+
+async function archiveClassById(classId) {
+  const classToArchive =
+    state.ownedClasses.find(c => c.id === classId) ||
+    (state.selectedClass?.id === classId ? state.selectedClass : null);
+
+  if (!classToArchive || classToArchive.ownerId !== state.user.uid) return;
+
+  if (!confirm(
+    `Archive "${classToArchive.name}"? It will disappear from your normal class list and be hidden from students.`
+  )) {
+    return;
+  }
+
+  try {
+    await updateDoc(
+      doc(state.db, "classes", classToArchive.id),
+      {
+        archived: true,
+        archivedPublished: Boolean(classToArchive.published),
+        published: false,
+        archivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }
+    );
+
+    const wasOpen = state.selectedClass?.id === classToArchive.id;
+
+    if (wasOpen) {
+      state.selectedClass = null;
+      state.decks = [];
+    }
+
+    await loadLibrary();
+
+    if (wasOpen) {
+      showPanel("libraryView");
+    }
+
+    showMessage(
+      `"${classToArchive.name}" was archived. Its cards are still available for copying.`,
+      "success"
+    );
+  } catch (err) {
+    handleFirebaseError(err, "Could not archive the class.");
+  }
+}
+
 
 async function restoreArchivedClass(classId) {
   const archivedClass = state.archivedClasses.find(c => c.id === classId);
@@ -2623,6 +2694,13 @@ async function initializeFirebase() {
 }
 
 document.addEventListener("click", async e => {
+  const sidebarArchiveClass = e.target.closest("[data-archive-sidebar-class]");
+  if (sidebarArchiveClass) {
+    e.preventDefault();
+    e.stopPropagation();
+    return archiveClassById(sidebarArchiveClass.dataset.archiveSidebarClass);
+  }
+
   const sidebarClass = e.target.closest("[data-sidebar-class]");
   if (sidebarClass) {
     return openClass(sidebarClass.dataset.sidebarClass);

@@ -142,3 +142,14 @@ Use the **Archived** button at the bottom of the sidebar.
 Archived classes and decks each have a **Restore** button. Restoring returns the previous sharing/visibility setting.
 
 No Firestore rule change is required for this feature. Archive/restore writes remain owner-only under the existing rules.
+
+
+## Archive a class from the sidebar
+
+Owned classes now have a small archive button on the right side of the sidebar row.
+
+- Hover over an owned class to reveal it.
+- Click the archive icon and confirm.
+- The class moves to **Archived** immediately.
+- Shared classes do not show the archive icon.
+- Archived cards remain available through Copy Cards.
