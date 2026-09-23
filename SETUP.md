@@ -76,16 +76,14 @@ Example:
 
 Custom templates must contain `{term}`.
 
-## Google Forms Quiz export
+## Google Forms Quiz export — Google Apps Script
 
-Class owners now see **Export to Google Forms Quiz** in Quiz Setup.
+This build uses Google Apps Script rather than direct Google Forms API OAuth from the website.
 
-The app:
-1. Requests Google Forms permission only when the owner clicks Export.
-2. Creates a new Google Form.
-3. Converts it to a quiz.
-4. Adds the generated questions.
-5. Adds the correct answer key and point value.
-6. Returns an **Open Google Form Quiz** link.
+Files included:
 
-One-time Google Cloud setup is described in `GOOGLE_FORMS_SETUP.md`.
+- `GoogleFormsExport.gs` — paste into a Google Apps Script project.
+- `APPS_SCRIPT_SETUP.md` — deployment instructions.
+- `apps-script-config.js` — optional default Web App URL.
+
+You can also leave `apps-script-config.js` blank and paste the deployed `/exec` URL directly in Quiz Setup. The browser remembers it locally.

@@ -1,4 +1,5 @@
 import { firebaseConfig } from "./firebase-config.js";
+import { googleFormsAppsScriptUrl } from "./apps-script-config.js";
 
 const FIREBASE_VERSION = "12.19.0";
 const THEME_KEY = "flashcards_brainscape_theme";
@@ -14,7 +15,6 @@ const {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
-  reauthenticateWithPopup,
   signOut,
   onAuthStateChanged
 } = authModule;
@@ -1193,8 +1193,10 @@ function chooseQuizSetup(scope, deckId = null) {
   document.getElementById("quizTemplateField").classList.add("hidden");
   document.getElementById("quizPointsInput").value = state.quizConfig.points;
   document.getElementById("exportGoogleFormsBtn").classList.toggle("hidden", !isOwner());
+  document.getElementById("appsScriptSetupField").classList.toggle("hidden", !isOwner());
   document.getElementById("googleFormsExportResult").classList.add("hidden");
   document.getElementById("googleFormsExportStatus").textContent = "";
+  syncAppsScriptUrlField();
 
   openModal("quizSetupModal");
 }
@@ -1366,115 +1368,76 @@ function startConfiguredQuiz() {
   renderQuizQuestion();
 }
 
-async function googleFormsRequest(path, accessToken, options = {}) {
-  const response = await fetch(`https://forms.googleapis.com/v1${path}`, {
-    ...options,
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
+const APPS_SCRIPT_URL_STORAGE_KEY = "flashcards_google_forms_apps_script_url";
 
-  const bodyText = await response.text();
-  let data = {};
+function configuredAppsScriptUrl() {
+  const local = localStorage.getItem(APPS_SCRIPT_URL_STORAGE_KEY)?.trim();
+  const bundled = String(googleFormsAppsScriptUrl || "").trim();
 
-  if (bodyText) {
-    try {
-      data = JSON.parse(bodyText);
-    } catch {
-      data = { raw: bodyText };
-    }
-  }
-
-  if (!response.ok) {
-    const apiMessage =
-      data?.error?.message ||
-      data?.raw ||
-      `Google Forms API error (${response.status})`;
-
-    const err = new Error(apiMessage);
-    err.httpStatus = response.status;
-    err.apiData = data;
-    throw err;
-  }
-
-  return data;
+  if (local) return local;
+  if (bundled && !bundled.includes("PASTE_YOUR")) return bundled;
+  return "";
 }
 
-function googleFormQuestionItem(question, points, index) {
-  const grading = {
-    pointValue: points,
-    correctAnswers: {
-      answers: [{ value: question.answer }]
-    }
-  };
+function syncAppsScriptUrlField() {
+  const field = document.getElementById("appsScriptUrlInput");
+  if (!field) return;
+  field.value = configuredAppsScriptUrl();
+}
 
-  let questionKind;
+function saveAppsScriptUrlFromField() {
+  const field = document.getElementById("appsScriptUrlInput");
+  if (!field) return "";
 
-  if (question.type === "multiple" && Array.isArray(question.options)) {
-    grading.whenRight = { text: "Correct." };
-    grading.whenWrong = { text: `Correct answer: ${question.answer}` };
+  const value = field.value.trim();
 
-    questionKind = {
-      choiceQuestion: {
-        type: "RADIO",
-        options: question.options.map(value => ({ value })),
-        shuffle: false
-      }
-    };
+  if (value) {
+    localStorage.setItem(APPS_SCRIPT_URL_STORAGE_KEY, value);
   } else {
-    grading.generalFeedback = {
-      text: `Correct answer: ${question.answer}`
-    };
-
-    questionKind = {
-      textQuestion: {
-        paragraph: false
-      }
-    };
+    localStorage.removeItem(APPS_SCRIPT_URL_STORAGE_KEY);
   }
+
+  return value;
+}
+
+function validateAppsScriptWebAppUrl(url) {
+  return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/i.test(url);
+}
+
+function buildAppsScriptQuizPayload() {
+  if (!state.pendingQuiz) return null;
+
+  const questions = buildQuizQuestions(
+    state.pendingQuiz.scope,
+    state.pendingQuiz.deckId,
+    state.quizConfig
+  );
+
+  if (!questions.length) return null;
+
+  const targetTitle =
+    state.pendingQuiz.scope === "deck"
+      ? `${state.decks.find(d => d.id === state.pendingQuiz.deckId)?.name || "Flashcards"} Quiz`
+      : `${state.selectedClass.name} Quiz`;
 
   return {
-    createItem: {
-      item: {
-        title: question.prompt,
-        description: question.deckName ? `Deck: ${question.deckName}` : "",
-        questionItem: {
-          question: {
-            required: true,
-            grading,
-            ...questionKind
-          }
-        }
-      },
-      location: { index }
-    }
+    source: "Flashcards",
+    version: 1,
+    title: targetTitle,
+    className: state.selectedClass.name,
+    pointsEach: state.quizConfig.points,
+    createdBy: state.user?.email || "",
+    questions: questions.map(q => ({
+      prompt: q.prompt,
+      answer: q.answer,
+      type: q.type,
+      options: Array.isArray(q.options) ? q.options : [],
+      deckName: q.deckName || ""
+    }))
   };
 }
 
-async function getGoogleFormsAccessToken() {
-  const provider = new GoogleAuthProvider();
-  provider.addScope("https://www.googleapis.com/auth/forms.body");
-
-  if (state.user?.email) {
-    provider.setCustomParameters({
-      login_hint: state.user.email
-    });
-  }
-
-  const result = await reauthenticateWithPopup(state.user, provider);
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  const accessToken = credential?.accessToken;
-
-  if (!accessToken) {
-    throw new Error("Google did not return a Forms authorization token.");
-  }
-
-  return accessToken;
-}
-
-async function exportQuizToGoogleForms() {
+function exportQuizToGoogleForms() {
   if (!isOwner()) {
     showMessage("Only the class owner can export this quiz.", "error");
     return;
@@ -1488,96 +1451,59 @@ async function exportQuizToGoogleForms() {
   const resultBox = document.getElementById("googleFormsExportResult");
 
   resultBox.classList.add("hidden");
-  status.textContent = "Connecting to Google Forms…";
+
+  const typedUrl = saveAppsScriptUrlFromField();
+  const scriptUrl = typedUrl || configuredAppsScriptUrl();
+
+  if (!scriptUrl) {
+    status.textContent =
+      "Paste your deployed Google Apps Script Web App URL first.";
+    document.getElementById("appsScriptUrlInput").focus();
+    return;
+  }
+
+  if (!validateAppsScriptWebAppUrl(scriptUrl)) {
+    status.textContent =
+      "That does not look like a deployed Apps Script Web App /exec URL.";
+    document.getElementById("appsScriptUrlInput").focus();
+    return;
+  }
+
+  const payload = buildAppsScriptQuizPayload();
+
+  if (!payload) {
+    status.textContent = "There are no flashcards available to export.";
+    return;
+  }
+
   exportBtn.disabled = true;
+  status.textContent = `Sending ${payload.questions.length} questions to Google Apps Script…`;
 
   try {
-    const questions = buildQuizQuestions(
-      state.pendingQuiz.scope,
-      state.pendingQuiz.deckId,
-      state.quizConfig
-    );
+    // Native form POST avoids browser CORS restrictions and lets the
+    // Apps Script web app return its own success page in a new tab.
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = scriptUrl;
+    form.target = "_blank";
+    form.style.display = "none";
 
-    if (!questions.length) {
-      throw new Error("There are no flashcards available to export.");
-    }
+    const payloadInput = document.createElement("input");
+    payloadInput.type = "hidden";
+    payloadInput.name = "payload";
+    payloadInput.value = JSON.stringify(payload);
 
-    const accessToken = await getGoogleFormsAccessToken();
+    form.appendChild(payloadInput);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
 
-    status.textContent = "Creating Google Form Quiz…";
-
-    const targetTitle =
-      state.pendingQuiz.scope === "deck"
-        ? `${state.decks.find(d => d.id === state.pendingQuiz.deckId)?.name || "Flashcards"} Quiz`
-        : `${state.selectedClass.name} Quiz`;
-
-    const created = await googleFormsRequest("/forms", accessToken, {
-      method: "POST",
-      body: JSON.stringify({
-        info: {
-          title: targetTitle
-        }
-      })
-    });
-
-    if (!created.formId) {
-      throw new Error("Google Forms did not return a form ID.");
-    }
-
-    const requests = [
-      {
-        updateSettings: {
-          settings: {
-            quizSettings: {
-              isQuiz: true
-            }
-          },
-          updateMask: "quizSettings.isQuiz"
-        }
-      },
-      {
-        updateFormInfo: {
-          info: {
-            description:
-              `Created from Flashcards — ${state.selectedClass.name}. ` +
-              `${questions.length} question${questions.length === 1 ? "" : "s"}, ` +
-              `${state.quizConfig.points} point${state.quizConfig.points === 1 ? "" : "s"} each.`
-          },
-          updateMask: "description"
-        }
-      },
-      ...questions.map((q, index) =>
-        googleFormQuestionItem(q, state.quizConfig.points, index)
-      )
-    ];
-
-    await googleFormsRequest(`/forms/${encodeURIComponent(created.formId)}:batchUpdate`, accessToken, {
-      method: "POST",
-      body: JSON.stringify({ requests })
-    });
-
-    const editUrl = `https://docs.google.com/forms/d/${created.formId}/edit`;
-    const link = document.getElementById("googleFormsEditLink");
-    link.href = editUrl;
-
-    resultBox.classList.remove("hidden");
-    status.textContent = `Exported ${questions.length} questions successfully.`;
-    showMessage("Google Form Quiz created.", "success");
+    status.textContent =
+      "Export opened in a new tab. Google Apps Script will create the Form Quiz there.";
+    showMessage("Google Forms export opened.", "success");
   } catch (err) {
     console.error(err);
-
-    if (
-      err?.httpStatus === 403 ||
-      /access not configured|api has not been used|permission|insufficient authentication|scope/i.test(err?.message || "")
-    ) {
-      status.textContent =
-        "Google Forms export needs the Google Forms API enabled for this Firebase/Google Cloud project.";
-    } else if (err?.code === "auth/popup-blocked") {
-      status.textContent =
-        "Your browser blocked the Google permission window. Allow popups and try again.";
-    } else {
-      status.textContent = `Export failed: ${err?.message || "Unknown error"}`;
-    }
+    status.textContent = `Export failed: ${err?.message || "Unknown error"}`;
   } finally {
     exportBtn.disabled = false;
   }
@@ -2126,6 +2052,7 @@ document.getElementById("studyClassBtn").addEventListener("click", () => chooseS
 document.getElementById("quizClassBtn").addEventListener("click", () => chooseQuizSetup("class"));
 document.getElementById("startQuizBtn").addEventListener("click", startConfiguredQuiz);
 document.getElementById("exportGoogleFormsBtn").addEventListener("click", exportQuizToGoogleForms);
+document.getElementById("appsScriptUrlInput").addEventListener("change", saveAppsScriptUrlFromField);
 document.getElementById("quizTemplateInput").addEventListener("input", e => {
   state.quizConfig.template = e.target.value;
 });

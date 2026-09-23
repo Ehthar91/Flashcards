@@ -542,14 +542,22 @@
 
         <button id="exportGoogleFormsBtn" class="google-forms-btn hidden" type="button">
           <span class="google-forms-icon">G</span>
-          Export to Google Forms Quiz
+          Export with Google Apps Script
         </button>
       </div>
 
-      <div id="googleFormsExportResult" class="google-forms-result hidden">
-        <strong>Google Form created.</strong>
-        <a id="googleFormsEditLink" target="_blank" rel="noopener">Open Google Form Quiz ↗</a>
+      <div id="appsScriptSetupField" class="apps-script-setup hidden">
+        <label>
+          Google Apps Script Web App URL
+          <input id="appsScriptUrlInput" type="url"
+            placeholder="https://script.google.com/macros/s/.../exec" />
+        </label>
+        <small>
+          Paste the deployed <strong>/exec</strong> URL once. It is saved in this browser.
+        </small>
       </div>
+
+      <div id="googleFormsExportResult" class="google-forms-result hidden"></div>
 
       <p id="googleFormsExportStatus" class="google-forms-status" aria-live="polite"></p>
 
