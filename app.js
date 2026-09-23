@@ -1,5 +1,4 @@
 import { firebaseConfig } from "./firebase-config.js";
-import { googleFormsAppsScriptUrl } from "./apps-script-config.js";
 
 const FIREBASE_VERSION = "12.19.0";
 const THEME_KEY = "flashcards_brainscape_theme";
@@ -1193,10 +1192,8 @@ function chooseQuizSetup(scope, deckId = null) {
   document.getElementById("quizTemplateField").classList.add("hidden");
   document.getElementById("quizPointsInput").value = state.quizConfig.points;
   document.getElementById("exportGoogleFormsBtn").classList.toggle("hidden", !isOwner());
-  document.getElementById("appsScriptSetupField").classList.toggle("hidden", !isOwner());
   document.getElementById("googleFormsExportResult").classList.add("hidden");
   document.getElementById("googleFormsExportStatus").textContent = "";
-  syncAppsScriptUrlField();
 
   openModal("quizSetupModal");
 }
@@ -1368,43 +1365,171 @@ function startConfiguredQuiz() {
   renderQuizQuestion();
 }
 
-const APPS_SCRIPT_URL_STORAGE_KEY = "flashcards_google_forms_apps_script_url";
+function buildGoogleFormsGsSource(payload) {
+  const embeddedQuiz = JSON.stringify(payload, null, 2);
 
-function configuredAppsScriptUrl() {
-  const local = localStorage.getItem(APPS_SCRIPT_URL_STORAGE_KEY)?.trim();
-  const bundled = String(googleFormsAppsScriptUrl || "").trim();
+  return `/**
+ * Flashcards → Google Forms Quiz
+ *
+ * HOW TO USE
+ * 1. Go to https://script.google.com and create a new project.
+ * 2. Replace the starter code with this entire file.
+ * 3. Save.
+ * 4. Run createFlashcardsQuiz().
+ * 5. Approve Google permissions the first time.
+ * 6. Open the execution log for the Form URLs, or find the new Form in Google Drive.
+ */
 
-  if (local) return local;
-  if (bundled && !bundled.includes("PASTE_YOUR")) return bundled;
-  return "";
-}
+const FLASHCARDS_QUIZ = ${embeddedQuiz};
 
-function syncAppsScriptUrlField() {
-  const field = document.getElementById("appsScriptUrlInput");
-  if (!field) return;
-  field.value = configuredAppsScriptUrl();
-}
+function createFlashcardsQuiz() {
+  const quiz = FLASHCARDS_QUIZ;
 
-function saveAppsScriptUrlFromField() {
-  const field = document.getElementById("appsScriptUrlInput");
-  if (!field) return "";
-
-  const value = field.value.trim();
-
-  if (value) {
-    localStorage.setItem(APPS_SCRIPT_URL_STORAGE_KEY, value);
-  } else {
-    localStorage.removeItem(APPS_SCRIPT_URL_STORAGE_KEY);
+  if (!quiz || !Array.isArray(quiz.questions) || !quiz.questions.length) {
+    throw new Error("No quiz questions were found.");
   }
 
-  return value;
+  const pointsEach = normalizePoints_(quiz.pointsEach);
+  const form = FormApp.create(quiz.title || "Flashcards Quiz");
+
+  form
+    .setIsQuiz(true)
+    .setDescription(
+      "Created from Flashcards" +
+      (quiz.className ? " — " + quiz.className : "") +
+      ". " + quiz.questions.length + " question" +
+      (quiz.questions.length === 1 ? "" : "s") + "."
+    )
+    .setProgressBar(true)
+    .setShuffleQuestions(false)
+    .setConfirmationMessage("Your quiz has been submitted.");
+
+  let typedCount = 0;
+
+  quiz.questions.forEach(function(question, index) {
+    const prompt = cleanText_(question.prompt);
+    const answer = cleanText_(question.answer);
+    const deckName = cleanText_(question.deckName);
+
+    if (!prompt) throw new Error("Question " + (index + 1) + " has no question text.");
+    if (!answer) throw new Error("Question " + (index + 1) + " has no answer.");
+
+    if (
+      question.type === "multiple" &&
+      Array.isArray(question.options) &&
+      question.options.length >= 2
+    ) {
+      addMultipleChoiceQuestion_(form, prompt, answer, question.options, deckName, pointsEach);
+    } else {
+      typedCount += 1;
+      addTypedQuestion_(form, prompt, answer, deckName, pointsEach);
+    }
+  });
+
+  const editUrl = form.getEditUrl();
+  const studentUrl = form.getPublishedUrl();
+
+  console.log("Google Form Quiz created.");
+  console.log("EDIT URL: " + editUrl);
+  console.log("STUDENT URL: " + studentUrl);
+
+  if (typedCount) {
+    console.log(
+      "NOTE: " + typedCount +
+      " typed-answer question(s) were created. Review them in Google Forms if you want automatic grading."
+    );
+  }
+
+  return editUrl;
 }
 
-function validateAppsScriptWebAppUrl(url) {
-  return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/i.test(url);
+function addMultipleChoiceQuestion_(form, prompt, answer, options, deckName, points) {
+  const unique = uniqueStrings_(options);
+  const answerKey = normalize_(answer);
+
+  if (!unique.some(function(value) { return normalize_(value) === answerKey; })) {
+    unique.push(answer);
+  }
+
+  if (unique.length < 2) {
+    addTypedQuestion_(form, prompt, answer, deckName, points);
+    return;
+  }
+
+  const item = form.addMultipleChoiceItem();
+  item.setTitle(prompt).setRequired(true).setPoints(points);
+
+  if (deckName) item.setHelpText("Deck: " + deckName);
+
+  item.setChoices(
+    unique.map(function(value) {
+      return item.createChoice(value, normalize_(value) === answerKey);
+    })
+  );
+
+  item
+    .setFeedbackForCorrect(FormApp.createFeedback().setText("Correct.").build())
+    .setFeedbackForIncorrect(
+      FormApp.createFeedback().setText("Correct answer: " + answer).build()
+    );
 }
 
-function buildAppsScriptQuizPayload() {
+function addTypedQuestion_(form, prompt, answer, deckName, points) {
+  const item = form.addTextItem();
+  item.setTitle(prompt).setRequired(true).setPoints(points);
+
+  if (deckName) item.setHelpText("Deck: " + deckName);
+
+  item.setGeneralFeedback(
+    FormApp.createFeedback().setText("Answer key: " + answer).build()
+  );
+}
+
+function normalizePoints_(value) {
+  let n = Number(value);
+  if (!isFinite(n)) n = 1;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function cleanText_(value) {
+  return String(value == null ? "" : value).trim();
+}
+
+function normalize_(value) {
+  return cleanText_(value).toLowerCase().replace(/\\s+/g, " ");
+}
+
+function uniqueStrings_(values) {
+  const seen = {};
+  const result = [];
+
+  (values || []).forEach(function(value) {
+    const text = cleanText_(value);
+    const key = normalize_(text);
+
+    if (!text || seen[key]) return;
+
+    seen[key] = true;
+    result.push(text);
+  });
+
+  return result;
+}
+`;
+}
+
+function safeFileName(value) {
+  return String(value || "flashcards-quiz")
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase()
+    .slice(0, 80) || "flashcards-quiz";
+}
+
+function buildGsQuizPayload() {
   if (!state.pendingQuiz) return null;
 
   const questions = buildQuizQuestions(
@@ -1426,7 +1551,6 @@ function buildAppsScriptQuizPayload() {
     title: targetTitle,
     className: state.selectedClass.name,
     pointsEach: state.quizConfig.points,
-    createdBy: state.user?.email || "",
     questions: questions.map(q => ({
       prompt: q.prompt,
       answer: q.answer,
@@ -1447,65 +1571,42 @@ function exportQuizToGoogleForms() {
   if (!validateQuizSetup()) return;
 
   const status = document.getElementById("googleFormsExportStatus");
-  const exportBtn = document.getElementById("exportGoogleFormsBtn");
   const resultBox = document.getElementById("googleFormsExportResult");
-
   resultBox.classList.add("hidden");
 
-  const typedUrl = saveAppsScriptUrlFromField();
-  const scriptUrl = typedUrl || configuredAppsScriptUrl();
-
-  if (!scriptUrl) {
-    status.textContent =
-      "Paste your deployed Google Apps Script Web App URL first.";
-    document.getElementById("appsScriptUrlInput").focus();
-    return;
-  }
-
-  if (!validateAppsScriptWebAppUrl(scriptUrl)) {
-    status.textContent =
-      "That does not look like a deployed Apps Script Web App /exec URL.";
-    document.getElementById("appsScriptUrlInput").focus();
-    return;
-  }
-
-  const payload = buildAppsScriptQuizPayload();
+  const payload = buildGsQuizPayload();
 
   if (!payload) {
     status.textContent = "There are no flashcards available to export.";
     return;
   }
 
-  exportBtn.disabled = true;
-  status.textContent = `Sending ${payload.questions.length} questions to Google Apps Script…`;
-
   try {
-    // Native form POST avoids browser CORS restrictions and lets the
-    // Apps Script web app return its own success page in a new tab.
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = scriptUrl;
-    form.target = "_blank";
-    form.style.display = "none";
+    const source = buildGoogleFormsGsSource(payload);
+    const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
 
-    const payloadInput = document.createElement("input");
-    payloadInput.type = "hidden";
-    payloadInput.name = "payload";
-    payloadInput.value = JSON.stringify(payload);
+    link.href = url;
+    link.download = `${safeFileName(payload.title)}.gs`;
 
-    form.appendChild(payloadInput);
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 
     status.textContent =
-      "Export opened in a new tab. Google Apps Script will create the Form Quiz there.";
-    showMessage("Google Forms export opened.", "success");
+      `Downloaded ${payload.questions.length} questions as a Google Apps Script file.`;
+
+    resultBox.innerHTML =
+      "<strong>Script downloaded.</strong> Open Google Apps Script, paste the .gs file, and run createFlashcardsQuiz().";
+    resultBox.classList.remove("hidden");
+
+    showMessage("Google Forms .gs script downloaded.", "success");
   } catch (err) {
     console.error(err);
     status.textContent = `Export failed: ${err?.message || "Unknown error"}`;
-  } finally {
-    exportBtn.disabled = false;
   }
 }
 
@@ -2052,7 +2153,6 @@ document.getElementById("studyClassBtn").addEventListener("click", () => chooseS
 document.getElementById("quizClassBtn").addEventListener("click", () => chooseQuizSetup("class"));
 document.getElementById("startQuizBtn").addEventListener("click", startConfiguredQuiz);
 document.getElementById("exportGoogleFormsBtn").addEventListener("click", exportQuizToGoogleForms);
-document.getElementById("appsScriptUrlInput").addEventListener("change", saveAppsScriptUrlFromField);
 document.getElementById("quizTemplateInput").addEventListener("input", e => {
   state.quizConfig.template = e.target.value;
 });

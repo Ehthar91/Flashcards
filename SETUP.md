@@ -76,14 +76,17 @@ Example:
 
 Custom templates must contain `{term}`.
 
-## Google Forms Quiz export — Google Apps Script
+## Google Forms Quiz export — downloadable `.gs`
 
-This build uses Google Apps Script rather than direct Google Forms API OAuth from the website.
+The Flashcards site does not connect to Google Apps Script.
 
-Files included:
+Click **Download Google Forms Script (.gs)** in Quiz Setup. The downloaded script contains that exact quiz.
 
-- `GoogleFormsExport.gs` — paste into a Google Apps Script project.
-- `APPS_SCRIPT_SETUP.md` — deployment instructions.
-- `apps-script-config.js` — optional default Web App URL.
+To create the Form:
 
-You can also leave `apps-script-config.js` blank and paste the deployed `/exec` URL directly in Quiz Setup. The browser remembers it locally.
+1. Open Google Apps Script and create a new project.
+2. Replace the starter code with the downloaded `.gs` file.
+3. Save.
+4. Run `createFlashcardsQuiz()`.
+5. Approve Google permissions the first time.
+6. Open the execution log for the Form editor/student URLs, or find the new Form in Google Drive.
